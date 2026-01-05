@@ -10,8 +10,12 @@ type EchartsRawCardConfig = LovelaceCardConfig & {
   title?: string;
 };
 
+/* ------------------------------------------------------------------
+ * Token + transform types
+ * ------------------------------------------------------------------ */
+
 type TokenMap =
-  | { type: "log"; base?: number; add?: number } // log(value + add) / log(base)
+  | { type: "log"; base?: number; add?: number }
   | { type: "sqrt" }
   | { type: "pow"; pow: number };
 
@@ -21,38 +25,44 @@ type TokenObject = {
   $coerce?: "auto" | "number" | "string" | "bool";
   $default?: unknown;
 
-  // Phase 2.2A transforms (applied in this order)
   $map?: TokenMap;
-
   $abs?: boolean;
   $scale?: number;
   $offset?: number;
-
-  // convenience endpoints (applied before $clamp if present)
   $min?: number;
   $max?: number;
-
   $clamp?: [number, number];
-  $round?: number; // digits
+  $round?: number;
 };
+
+/* ------------------------------------------------------------------
+ * $data generator (Phase 2.2C)
+ * ------------------------------------------------------------------ */
 
 type DataMode = "pairs" | "names" | "values";
 
+type EntitySpec = string | { id: string; name?: string };
+
 type DataGenerator = {
   $data: {
-    entities: string[];
-    mode?: DataMode; // default "pairs"
-    name_from?: "friendly_name" | "entity_id"; // default "friendly_name"
+    entities: EntitySpec[];
 
-    // value extraction
-    attr?: string; // optional: use attribute instead of state
+    mode?: DataMode;
+    name_from?: "friendly_name" | "entity_id";
 
-    // coercion + defaults
+    attr?: string;
     coerce?: TokenObject["$coerce"];
     default?: unknown;
-    include_unavailable?: boolean; // default false
 
-    // reuse 2.2A transforms
+    // legacy
+    include_unavailable?: boolean;
+
+    // 2.2C
+    exclude_unavailable?: boolean;
+    exclude_zero?: boolean;
+    sort?: "asc" | "desc" | "none";
+    limit?: number;
+
     transforms?: {
       map?: TokenObject["$map"];
       abs?: boolean;
@@ -66,62 +76,20 @@ type DataGenerator = {
   };
 };
 
+/* ------------------------------------------------------------------
+ * Type guards + helpers
+ * ------------------------------------------------------------------ */
+
 function isDataGenerator(v: unknown): v is DataGenerator {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
-  return Object.prototype.hasOwnProperty.call(v, "$data");
+  return !!v && typeof v === "object" && !Array.isArray(v) && "$data" in v;
 }
 
 function isTokenObject(v: unknown): v is TokenObject {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
-  return Object.prototype.hasOwnProperty.call(v, "$entity");
+  return !!v && typeof v === "object" && !Array.isArray(v) && "$entity" in v;
 }
 
-function applyNumberTransforms(value: unknown, token: TokenObject): unknown {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return value;
-
-  let x = n;
-
-  // 1) map
-  if (token.$map) {
-    const m = token.$map;
-    if (m.type === "log") {
-      const base = m.base ?? 10;
-      const add = m.add ?? 1; // avoid log(0)
-      x = Math.log(x + add) / Math.log(base);
-      if (!Number.isFinite(x)) return token.$default ?? 0;
-    } else if (m.type === "sqrt") {
-      x = x < 0 ? 0 : Math.sqrt(x);
-    } else if (m.type === "pow") {
-      x = Math.pow(x, m.pow);
-    }
-  }
-
-  // 2) abs
-  if (token.$abs) x = Math.abs(x);
-
-  // 3) scale / offset
-  if (typeof token.$scale === "number") x = x * token.$scale;
-  if (typeof token.$offset === "number") x = x + token.$offset;
-
-  // 4) min/max convenience
-  if (typeof token.$min === "number") x = Math.max(token.$min, x);
-  if (typeof token.$max === "number") x = Math.min(token.$max, x);
-
-  // 5) clamp (overrides if both provided)
-  if (token.$clamp) {
-    const [min, max] = token.$clamp;
-    x = Math.min(max, Math.max(min, x));
-  }
-
-  // 6) round
-  if (typeof token.$round === "number") {
-    const d = token.$round;
-    const p = Math.pow(10, d);
-    x = Math.round(x * p) / p;
-  }
-
-  return x;
+function normalizeEntitySpec(e: EntitySpec): { id: string; name?: string } {
+  return typeof e === "string" ? { id: e } : e;
 }
 
 function coerceValue(raw: unknown, mode: TokenObject["$coerce"] = "auto"): unknown {
@@ -134,144 +102,166 @@ function coerceValue(raw: unknown, mode: TokenObject["$coerce"] = "auto"): unkno
       const s = raw.toLowerCase().trim();
       if (["on", "true", "1", "yes", "home", "open"].includes(s)) return true;
       if (["off", "false", "0", "no", "not_home", "closed"].includes(s)) return false;
-      return Boolean(s);
     }
     return Boolean(raw);
   }
 
   if (mode === "number") {
-    const n = typeof raw === "number" ? raw : Number(raw);
+    const n = Number(raw);
     return Number.isFinite(n) ? n : NaN;
   }
 
-  // auto
-  if (typeof raw === "number" || typeof raw === "boolean") return raw;
   if (typeof raw === "string") {
     const s = raw.trim();
     if (s === "") return raw;
     const n = Number(s);
     return Number.isFinite(n) ? n : raw;
   }
+
   return raw;
+}
+
+function applyNumberTransforms(value: unknown, token: TokenObject): unknown {
+  let x = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(x)) return token.$default ?? value;
+
+  if (token.$map) {
+    const m = token.$map;
+    if (m.type === "log") {
+      const base = m.base ?? 10;
+      const add = m.add ?? 1;
+      x = Math.log(x + add) / Math.log(base);
+    } else if (m.type === "sqrt") {
+      x = x < 0 ? 0 : Math.sqrt(x);
+    } else if (m.type === "pow") {
+      x = Math.pow(x, m.pow);
+    }
+  }
+
+  if (token.$abs) x = Math.abs(x);
+  if (typeof token.$scale === "number") x *= token.$scale;
+  if (typeof token.$offset === "number") x += token.$offset;
+  if (typeof token.$min === "number") x = Math.max(token.$min, x);
+  if (typeof token.$max === "number") x = Math.min(token.$max, x);
+
+  if (token.$clamp) {
+    const [min, max] = token.$clamp;
+    x = Math.min(max, Math.max(min, x));
+  }
+
+  if (typeof token.$round === "number") {
+    const p = Math.pow(10, token.$round);
+    x = Math.round(x * p) / p;
+  }
+
+  return x;
 }
 
 function resolveEntityValue(
   hass: HomeAssistant | undefined,
   entityId: string,
-  coerce: TokenObject["$coerce"] | undefined,
-  def: unknown,
-  attr: string | undefined,
-  transforms: DataGenerator["$data"]["transforms"] | undefined,
+  spec: DataGenerator["$data"],
   watched: Set<string>
 ): unknown {
   watched.add(entityId);
 
   const st = hass?.states?.[entityId];
-  if (!st) return def;
+  if (!st) return spec.default;
 
-  const raw = attr ? (st.attributes?.[attr] as unknown) : (st.state as unknown);
+  const raw = spec.attr ? st.attributes?.[spec.attr] : st.state;
+  const coerced = coerceValue(raw, spec.coerce ?? "auto");
 
-  const coerced = coerceValue(raw, coerce ?? "auto");
-  if (typeof coerced === "number" && Number.isNaN(coerced)) return def ?? 0;
+  if (typeof coerced === "number" && Number.isNaN(coerced)) return spec.default ?? 0;
 
-  // apply transforms by adapting them into a TokenObject shape
-  const t: TokenObject = {
+  const token: TokenObject = {
     $entity: entityId,
-    $coerce: coerce ?? "auto",
-    $default: def,
-    $map: transforms?.map,
-    $abs: transforms?.abs,
-    $scale: transforms?.scale,
-    $offset: transforms?.offset,
-    $min: transforms?.min,
-    $max: transforms?.max,
-    $clamp: transforms?.clamp,
-    $round: transforms?.round
+    $coerce: spec.coerce,
+    $default: spec.default,
+    $map: spec.transforms?.map,
+    $abs: spec.transforms?.abs,
+    $scale: spec.transforms?.scale,
+    $offset: spec.transforms?.offset,
+    $min: spec.transforms?.min,
+    $max: spec.transforms?.max,
+    $clamp: spec.transforms?.clamp,
+    $round: spec.transforms?.round
   };
 
-  const transformed = applyNumberTransforms(coerced, t);
-
-  if (typeof transformed === "number" && !Number.isFinite(transformed)) return def ?? 0;
-  return transformed ?? def;
+  return applyNumberTransforms(coerced, token);
 }
+
+/* ------------------------------------------------------------------
+ * Token resolver
+ * ------------------------------------------------------------------ */
 
 function deepResolveTokens(
   input: unknown,
   hass: HomeAssistant | undefined,
   watched: Set<string>
 ): unknown {
-  // NEW: $data generator
   if (isDataGenerator(input)) {
     const spec = input.$data;
 
-    const mode: DataMode = spec.mode ?? "pairs";
+    const mode = spec.mode ?? "pairs";
     const nameFrom = spec.name_from ?? "friendly_name";
-    const includeUnavailable = spec.include_unavailable ?? false;
 
-    const outPairs: Array<{ name: string; value: unknown }> = [];
+    const includeLegacy = spec.include_unavailable ?? false;
+    const excludeUnavailable = spec.exclude_unavailable ?? true;
+    const includeMissing = includeLegacy || !excludeUnavailable;
 
-    for (const entityId of spec.entities ?? []) {
-      const st = hass?.states?.[entityId];
+    let rows: Array<{ name: string; value: unknown }> = [];
 
-      if (!st && !includeUnavailable) continue;
+    for (const raw of spec.entities) {
+      const { id, name: override } = normalizeEntitySpec(raw);
+      const st = hass?.states?.[id];
+
+      if (!st && !includeMissing) continue;
 
       const name =
-        nameFrom === "entity_id"
-          ? entityId
-          : (st?.attributes?.friendly_name as string | undefined) ?? entityId;
+        override ??
+        (nameFrom === "entity_id"
+          ? id
+          : (st?.attributes?.friendly_name as string | undefined) ?? id);
 
-      const value = resolveEntityValue(
-        hass,
-        entityId,
-        spec.coerce,
-        spec.default,
-        spec.attr,
-        spec.transforms,
-        watched
-      );
+      const value = resolveEntityValue(hass, id, spec, watched);
 
-      outPairs.push({ name, value });
+      if (spec.exclude_zero && Number(value) === 0) continue;
+
+      rows.push({ name, value });
     }
 
-    if (mode === "pairs") return outPairs;
-    if (mode === "names") return outPairs.map((p) => p.name);
-    return outPairs.map((p) => p.value);
+    if (spec.sort === "asc" || spec.sort === "desc") {
+      rows.sort((a, b) =>
+        (Number(a.value) - Number(b.value)) * (spec.sort === "asc" ? 1 : -1)
+      );
+    }
+
+    if (typeof spec.limit === "number") {
+      rows = rows.slice(0, spec.limit);
+    }
+
+    if (mode === "names") return rows.map((r) => r.name);
+    if (mode === "values") return rows.map((r) => r.value);
+    return rows;
   }
 
-  // existing: $entity token
   if (isTokenObject(input)) {
-    const entityId = input.$entity;
-    watched.add(entityId);
-
-    const st = hass?.states?.[entityId];
+    const st = hass?.states?.[input.$entity];
+    watched.add(input.$entity);
     if (!st) return input.$default;
 
-    const raw = input.$attr ? (st.attributes?.[input.$attr] as unknown) : (st.state as unknown);
-
+    const raw = input.$attr ? st.attributes?.[input.$attr] : st.state;
     const coerced = coerceValue(raw, input.$coerce ?? "auto");
-
-    if (typeof coerced === "number" && Number.isNaN(coerced)) {
-      return input.$default ?? 0;
-    }
-
-    const transformed = applyNumberTransforms(coerced, input);
-
-    if (typeof transformed === "number" && !Number.isFinite(transformed)) {
-      return input.$default ?? 0;
-    }
-
-    return transformed ?? input.$default;
+    return applyNumberTransforms(coerced, input);
   }
 
-  // recurse arrays
   if (Array.isArray(input)) {
     return input.map((x) => deepResolveTokens(x, hass, watched));
   }
 
-  // recurse objects
   if (input && typeof input === "object") {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(input)) {
       out[k] = deepResolveTokens(v, hass, watched);
     }
     return out;
@@ -280,8 +270,11 @@ function deepResolveTokens(
   return input;
 }
 
+/* ------------------------------------------------------------------
+ * Card
+ * ------------------------------------------------------------------ */
+
 export class EchartsRawCard extends LitElement {
-  // Lit reactive properties (no decorators)
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
@@ -289,258 +282,101 @@ export class EchartsRawCard extends LitElement {
   };
 
   public hass?: HomeAssistant;
-
-  // "state" properties (tracked by Lit)
   private _config?: EchartsRawCardConfig;
   private _error?: string;
 
   private _chart?: ECharts;
   private _resizeObserver?: ResizeObserver;
 
-  // Phase 2.1: keep track of referenced entities and their last seen values
   private _watchedEntities = new Set<string>();
   private _lastFingerprints = new Map<string, string>();
 
   public setConfig(config: LovelaceCardConfig): void {
-    if (!config) throw new Error("Invalid configuration");
-    if (!("option" in config)) throw new Error("Missing required `option`");
-
-    this._config = {
-      height: "300px",
-      renderer: "canvas",
-      ...config
-    } as EchartsRawCardConfig;
-
-    this._error = undefined;
-    // Recompute watched entities on next apply
+    this._config = { height: "300px", renderer: "canvas", ...config } as EchartsRawCardConfig;
     this._watchedEntities.clear();
     this._lastFingerprints.clear();
-  }
-
-  public getCardSize(): number {
-    return 3;
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-
-    if (this._resizeObserver) {
-      this._resizeObserver.disconnect();
-      this._resizeObserver = undefined;
-    }
-    if (this._chart) {
-      this._chart.dispose();
-      this._chart = undefined;
-    }
+    this._error = undefined;
   }
 
   protected firstUpdated(): void {
-    const container = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
-    if (!container) return;
+    const el = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+    if (!el) return;
 
-    this._chart = echarts.init(container, undefined, {
-      renderer: this._config?.renderer ?? "canvas"
-    });
-
-    this._resizeObserver = new ResizeObserver(() => {
-      this._chart?.resize();
-    });
-    this._resizeObserver.observe(container);
+    this._chart = echarts.init(el, undefined, { renderer: this._config?.renderer ?? "canvas" });
+    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
+    this._resizeObserver.observe(el);
 
     this._applyOption();
   }
 
   protected updated(changed: Map<string, unknown>): void {
-    // Config changes
-    if (changed.has("_config")) {
-      const oldConfig = changed.get("_config") as EchartsRawCardConfig | undefined;
-
-      if (
-        oldConfig?.renderer &&
-        this._config?.renderer &&
-        oldConfig.renderer !== this._config.renderer
-      ) {
-        this._reinitChart();
-        return;
-      }
-
+    if (changed.has("_config") || (changed.has("hass") && this._shouldUpdate())) {
       this._applyOption();
-      return;
-    }
-
-    // hass updates — re-render only if a referenced entity changed
-    if (changed.has("hass")) {
-      if (this._shouldUpdateForHassChange()) {
-        this._applyOption();
-      }
     }
   }
 
-  private _shouldUpdateForHassChange(): boolean {
-    if (!this._config?.option) return false;
-    if (this._watchedEntities.size === 0) return false;
-    if (!this.hass?.states) return false;
-
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
+  private _shouldUpdate(): boolean {
+    if (!this.hass) return false;
+    for (const id of this._watchedEntities) {
+      const st = this.hass.states[id];
       const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      const prev = this._lastFingerprints.get(entityId);
-      if (prev !== fp) return true;
+      if (this._lastFingerprints.get(id) !== fp) return true;
     }
     return false;
   }
 
-  private _snapshotFingerprints(): void {
-    if (!this.hass?.states) return;
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
-      const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      this._lastFingerprints.set(entityId, fp);
+  private _snapshot(): void {
+    if (!this.hass) return;
+    for (const id of this._watchedEntities) {
+      const st = this.hass.states[id];
+      this._lastFingerprints.set(id, st ? `${st.state}|${st.last_updated}` : "missing");
     }
-  }
-
-  private _reinitChart(): void {
-    const container = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
-    if (!container) return;
-
-    if (this._chart) {
-      this._chart.dispose();
-      this._chart = undefined;
-    }
-
-    this._chart = echarts.init(container, undefined, {
-      renderer: this._config?.renderer ?? "canvas"
-    });
-
-    this._applyOption();
-    this._chart.resize();
   }
 
   private _applyOption(): void {
-    if (!this._config?.option) return;
-    if (!this._chart) return;
+    if (!this._chart || !this._config?.option) return;
 
-    this._error = undefined;
-
-    // Resolve entity tokens + generators
     const watched = new Set<string>();
     const resolved = deepResolveTokens(this._config.option, this.hass, watched) as EChartsOption;
     this._watchedEntities = watched;
 
-    // Default transparent background unless user set backgroundColor
-    const opt = resolved as Record<string, unknown>;
-    const option: EChartsOption =
-      opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor")
-        ? resolved
-        : ({ backgroundColor: "transparent", ...resolved } as EChartsOption);
-
-    const opts: SetOptionOpts = {
-      notMerge: true,
-      lazyUpdate: true
+    const option: EChartsOption = {
+      backgroundColor: "transparent",
+      ...resolved
     };
 
-    // Optional: special-case gauge rounding formatter token
-    if ((option as any).series) {
-      for (const s of (option as any).series) {
-        if (s.type === "gauge" && typeof s.detail?.formatter === "string" && s.detail.formatter.includes("|round")) {
-          const unit = s.detail.formatter.replace("{value|round}", "").trim();
-          s.detail.formatter = (val: number) => {
-            if (!Number.isFinite(val)) return `0${unit ? " " + unit : ""}`;
-            return `${Math.round(val)}${unit ? " " + unit : ""}`;
-          };
-        }
-      }
-    }
-
     try {
-      this._chart.setOption(option, opts);
-      this._snapshotFingerprints();
+      this._chart.setOption(option, { notMerge: true, lazyUpdate: true });
+      this._snapshot();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this._error = msg;
-      // eslint-disable-next-line no-console
-      console.error("[echarts-raw-card] setOption error:", err);
+      this._error = err instanceof Error ? err.message : String(err);
+      console.error("[echarts-raw-card]", err);
     }
   }
 
   protected render() {
     if (!this._config) return nothing;
 
-    const title = (this._config.title as string | undefined) ?? "";
-
     return html`
       <ha-card>
-        ${title ? html`<div class="header">${title}</div>` : nothing}
-
+        ${this._config.title ? html`<div class="header">${this._config.title}</div>` : nothing}
         ${this._error
-          ? html`
-              <div class="error">
-                <div class="error-title">ECharts configuration error</div>
-                <pre class="error-details">${this._error}</pre>
-              </div>
-            `
+          ? html`<pre class="error">${this._error}</pre>`
           : nothing}
-
-        <div class="echarts-container" style="height: ${this._config.height ?? "300px"}"></div>
+        <div class="echarts-container" style="height:${this._config.height}"></div>
       </ha-card>
     `;
   }
 
   static styles = css`
-    :host {
-      display: block;
-    }
-    ha-card {
-      overflow: hidden;
-    }
-    .header {
-      padding: 12px 16px 0 16px;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    .echarts-container {
-      width: 100%;
-      min-height: 120px;
-    }
-    .error {
-      margin: 12px 16px 0 16px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--error-color);
-      background: color-mix(in srgb, var(--error-color) 10%, transparent);
-    }
-    .error-title {
-      font-weight: 600;
-      margin-bottom: 6px;
-    }
-    .error-details {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: var(
-        --code-font-family,
-        ui-monospace,
-        SFMono-Regular,
-        Menlo,
-        Monaco,
-        Consolas,
-        "Liberation Mono",
-        "Courier New",
-        monospace
-      );
-      font-size: 12px;
-      line-height: 1.35;
-    }
+    :host { display: block; }
+    ha-card { overflow: hidden; }
+    .header { padding: 12px 16px 0; font-size: 16px; font-weight: 600; }
+    .echarts-container { width: 100%; min-height: 120px; }
+    .error { margin: 12px; color: var(--error-color); white-space: pre-wrap; }
   `;
 }
 
-// Register element (no decorators)
 if (!customElements.get("echarts-raw-card")) {
   customElements.define("echarts-raw-card", EchartsRawCard);
-}
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "echarts-raw-card": EchartsRawCard;
-  }
 }
