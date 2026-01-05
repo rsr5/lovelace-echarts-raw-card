@@ -16,6 +16,7 @@ export class EchartsRawCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   @state() private _config?: EchartsRawCardConfig;
+  @state() private _error?: string;
 
   private _chart?: ECharts;
   private _resizeObserver?: ResizeObserver;
@@ -29,15 +30,13 @@ export class EchartsRawCard extends LitElement {
       renderer: "canvas",
       ...config
     } as EchartsRawCardConfig;
+
+    // Clear any previous error on new config
+    this._error = undefined;
   }
 
   public getCardSize(): number {
     return 3;
-  }
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    // Create observer lazily after first render, but keep hook here
   }
 
   disconnectedCallback(): void {
@@ -75,18 +74,24 @@ export class EchartsRawCard extends LitElement {
   protected updated(changed: Map<string, unknown>): void {
     // If config changes, re-apply options
     if (changed.has("_config")) {
-      // If renderer changed, need full re-init
       const oldConfig = changed.get("_config") as EchartsRawCardConfig | undefined;
-      if (oldConfig?.renderer && this._config?.renderer && oldConfig.renderer !== this._config.renderer) {
+
+      // If renderer changed, need full re-init
+      if (
+        oldConfig?.renderer &&
+        this._config?.renderer &&
+        oldConfig.renderer !== this._config.renderer
+      ) {
         this._reinitChart();
         return;
       }
+
       this._applyOption();
     }
 
-    // If hass changes: Phase 1 does nothing with it, but keep hook.
+    // Phase 1: hass isn't used yet
     if (changed.has("hass")) {
-      // no-op (Phase 2 will use this)
+      // no-op
     }
   }
 
@@ -111,10 +116,20 @@ export class EchartsRawCard extends LitElement {
   }
 
   private _applyOption(): void {
-    if (!this._chart || !this._config?.option) return;
+    if (!this._config?.option) return;
 
-    // Phase 1: pass through option as-is
-    const option: EChartsOption = this._config.option;
+    // Chart might not be initialised yet (e.g., config set before firstUpdated)
+    if (!this._chart) return;
+
+    // Clear previous render error before trying again
+    this._error = undefined;
+
+    // Default to transparent background unless user explicitly set one
+    const opt = this._config.option as Record<string, unknown>;
+    const option: EChartsOption =
+      opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor")
+        ? this._config.option
+        : ({ backgroundColor: "transparent", ...this._config.option } as EChartsOption);
 
     const opts: SetOptionOpts = {
       notMerge: true,
@@ -124,7 +139,9 @@ export class EchartsRawCard extends LitElement {
     try {
       this._chart.setOption(option, opts);
     } catch (err) {
-      // Render error message in card if option is invalid
+      const msg = err instanceof Error ? err.message : String(err);
+      this._error = msg;
+
       // eslint-disable-next-line no-console
       console.error("[echarts-raw-card] setOption error:", err);
     }
@@ -137,9 +154,17 @@ export class EchartsRawCard extends LitElement {
 
     return html`
       <ha-card>
-        ${title
-          ? html`<div class="header">${title}</div>`
+        ${title ? html`<div class="header">${title}</div>` : nothing}
+
+        ${this._error
+          ? html`
+              <div class="error">
+                <div class="error-title">ECharts configuration error</div>
+                <pre class="error-details">${this._error}</pre>
+              </div>
+            `
           : nothing}
+
         <div
           class="echarts-container"
           style="height: ${this._config.height ?? "300px"}"
@@ -164,10 +189,29 @@ export class EchartsRawCard extends LitElement {
       width: 100%;
       min-height: 120px;
     }
+
+    .error {
+      margin: 12px 16px 0 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--error-color);
+      background: color-mix(in srgb, var(--error-color) 10%, transparent);
+    }
+    .error-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .error-details {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+      font-size: 12px;
+      line-height: 1.35;
+    }
   `;
 }
 
-// Allow TS to accept HA card custom element usage
 declare global {
   interface HTMLElementTagNameMap {
     "echarts-raw-card": EchartsRawCard;
