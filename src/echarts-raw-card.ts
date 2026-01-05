@@ -10,16 +10,84 @@ type EchartsRawCardConfig = LovelaceCardConfig & {
   title?: string;
 };
 
+type TokenMap =
+  | { type: "log"; base?: number; add?: number } // log(value + add) / log(base)
+  | { type: "sqrt" }
+  | { type: "pow"; pow: number };
+
 type TokenObject = {
   $entity: string;
   $attr?: string;
   $coerce?: "auto" | "number" | "string" | "bool";
   $default?: unknown;
+
+  // Phase 2.2A transforms (applied in this order)
+  $map?: TokenMap;
+
+  $abs?: boolean;
+  $scale?: number;
+  $offset?: number;
+
+  // convenience endpoints (applied before $clamp if present)
+  $min?: number;
+  $max?: number;
+
+  $clamp?: [number, number];
+  $round?: number; // digits
 };
+
 
 function isTokenObject(v: unknown): v is TokenObject {
   if (!v || typeof v !== "object" || Array.isArray(v)) return false;
   return Object.prototype.hasOwnProperty.call(v, "$entity");
+}
+
+function applyNumberTransforms(value: unknown, token: TokenObject): unknown {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return value;
+
+  let x = n;
+
+  // 1) map
+  if (token.$map) {
+    const m = token.$map;
+    if (m.type === "log") {
+      const base = m.base ?? 10;
+      const add = m.add ?? 1; // avoid log(0)
+      x = Math.log(x + add) / Math.log(base);
+      if (!Number.isFinite(x)) return token.$default ?? 0;
+    } else if (m.type === "sqrt") {
+      x = x < 0 ? 0 : Math.sqrt(x);
+    } else if (m.type === "pow") {
+      x = Math.pow(x, m.pow);
+    }
+  }
+
+  // 2) abs
+  if (token.$abs) x = Math.abs(x);
+
+  // 3) scale / offset
+  if (typeof token.$scale === "number") x = x * token.$scale;
+  if (typeof token.$offset === "number") x = x + token.$offset;
+
+  // 4) min/max convenience
+  if (typeof token.$min === "number") x = Math.max(token.$min, x);
+  if (typeof token.$max === "number") x = Math.min(token.$max, x);
+
+  // 5) clamp (overrides if both provided)
+  if (token.$clamp) {
+    const [min, max] = token.$clamp;
+    x = Math.min(max, Math.max(min, x));
+  }
+
+  // 6) round
+  if (typeof token.$round === "number") {
+    const d = token.$round;
+    const p = Math.pow(10, d);
+    x = Math.round(x * p) / p;
+  }
+
+  return x;
 }
 
 function coerceValue(raw: unknown, mode: TokenObject["$coerce"] = "auto"): unknown {
@@ -71,10 +139,19 @@ function deepResolveTokens(
 
     const coerced = coerceValue(raw, input.$coerce ?? "auto");
 
+    // If number coercion fails, use default (or 0)
     if (typeof coerced === "number" && Number.isNaN(coerced)) {
     return input.$default ?? 0;
     }
-    return coerced ?? input.$default;
+
+    const transformed = applyNumberTransforms(coerced, input);
+
+    // If transforms produce a non-finite number, fall back safely
+    if (typeof transformed === "number" && !Number.isFinite(transformed)) {
+    return input.$default ?? 0;
+    }
+
+    return (transformed ?? input.$default);
   }
 
   if (Array.isArray(input)) {
@@ -257,6 +334,17 @@ export class EchartsRawCard extends LitElement {
       notMerge: true,
       lazyUpdate: true
     };
+
+    if ((option as any).series) {
+        for (const s of (option as any).series) {
+            if (s.type === "gauge" && s.detail?.formatter?.includes("|round")) {
+            s.detail.formatter = (val: number) => {
+                if (!Number.isFinite(val)) return "0";
+                return Math.round(val).toString() + " lx";
+            };
+            }
+        }
+    }
 
     try {
       this._chart.setOption(option, opts);
