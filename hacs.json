@@ -1,0 +1,8 @@
+{
+  "name": "ECharts Raw Card",
+  "content_in_root": false,
+  "render_readme": true,
+  "domains": ["lovelace"],
+  "homeassistant": "2023.8.0",
+  "iot_class": "Local Push"
+}
