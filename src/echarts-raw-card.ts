@@ -1,5 +1,4 @@
 import { LitElement, css, html, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
 import type { ECharts, EChartsOption, SetOptionOpts } from "echarts";
 import * as echarts from "echarts";
 import type { HomeAssistant, LovelaceCardConfig } from "./ha-types";
@@ -11,12 +10,19 @@ type EchartsRawCardConfig = LovelaceCardConfig & {
   title?: string;
 };
 
-@customElement("echarts-raw-card")
 export class EchartsRawCard extends LitElement {
-  @property({ attribute: false }) public hass?: HomeAssistant;
+  // Lit reactive properties (no decorators)
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+    _error: { state: true }
+  };
 
-  @state() private _config?: EchartsRawCardConfig;
-  @state() private _error?: string;
+  public hass?: HomeAssistant;
+
+  // "state" properties (tracked by Lit)
+  private _config?: EchartsRawCardConfig;
+  private _error?: string;
 
   private _chart?: ECharts;
   private _resizeObserver?: ResizeObserver;
@@ -31,7 +37,6 @@ export class EchartsRawCard extends LitElement {
       ...config
     } as EchartsRawCardConfig;
 
-    // Clear any previous error on new config
     this._error = undefined;
   }
 
@@ -72,11 +77,9 @@ export class EchartsRawCard extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>): void {
-    // If config changes, re-apply options
     if (changed.has("_config")) {
       const oldConfig = changed.get("_config") as EchartsRawCardConfig | undefined;
 
-      // If renderer changed, need full re-init
       if (
         oldConfig?.renderer &&
         this._config?.renderer &&
@@ -87,11 +90,6 @@ export class EchartsRawCard extends LitElement {
       }
 
       this._applyOption();
-    }
-
-    // Phase 1: hass isn't used yet
-    if (changed.has("hass")) {
-      // no-op
     }
   }
 
@@ -117,14 +115,11 @@ export class EchartsRawCard extends LitElement {
 
   private _applyOption(): void {
     if (!this._config?.option) return;
-
-    // Chart might not be initialised yet (e.g., config set before firstUpdated)
     if (!this._chart) return;
 
-    // Clear previous render error before trying again
     this._error = undefined;
 
-    // Default to transparent background unless user explicitly set one
+    // Default transparent background unless user set backgroundColor
     const opt = this._config.option as Record<string, unknown>;
     const option: EChartsOption =
       opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor")
@@ -141,7 +136,6 @@ export class EchartsRawCard extends LitElement {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
-
       // eslint-disable-next-line no-console
       console.error("[echarts-raw-card] setOption error:", err);
     }
@@ -189,7 +183,6 @@ export class EchartsRawCard extends LitElement {
       width: 100%;
       min-height: 120px;
     }
-
     .error {
       margin: 12px 16px 0 16px;
       padding: 10px 12px;
@@ -205,11 +198,26 @@ export class EchartsRawCard extends LitElement {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+      font-family: var(
+        --code-font-family,
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+      );
       font-size: 12px;
       line-height: 1.35;
     }
   `;
+}
+
+// Register element (no decorators)
+if (!customElements.get("echarts-raw-card")) {
+  customElements.define("echarts-raw-card", EchartsRawCard);
 }
 
 declare global {

@@ -1,16 +1,34 @@
-// src/index.ts
+import "./echarts-raw-card";
 
-// ECharts (or its deps) can reference `process` in browser bundles.
-// Home Assistant's frontend doesn't define it, so provide a minimal shim.
-const w = window as any;
-w.process = w.process || { env: {} };
+// Console banner (similar vibe to other HA custom cards)
+(() => {
+  const name = "ECharts Raw Card";
+  const version = "0.1.0"; // keep in sync with package.json or replace later
+  const badgeStyle =
+    "background:#1f2937;color:#fff;padding:2px 8px;border-radius:999px;font-weight:600;";
+  const nameStyle =
+    "background:#111827;color:#fff;padding:2px 8px;border-radius:6px 0 0 6px;font-weight:700;";
+  const verStyle =
+    "background:#374151;color:#fff;padding:2px 8px;border-radius:0 6px 6px 0;font-weight:700;";
 
-// Now load the card after the shim exists.
-import("./echarts-raw-card");
+  // One line banner
+  // eslint-disable-next-line no-console
+  console.info(
+    `%c${name}%c v${version}`,
+    nameStyle,
+    verStyle
+  );
 
-// Optional: show up in the Lovelace “Custom cards” list
-w.customCards = w.customCards || [];
-w.customCards.push({
+  // Optional extra line (like many cards do)
+  // eslint-disable-next-line no-console
+  console.info(`%cLoaded`, badgeStyle);
+})();
+
+// Register for Lovelace custom cards list
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(window as any).customCards = (window as any).customCards || [];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(window as any).customCards.push({
   type: "echarts-raw-card",
   name: "ECharts Raw Card",
   description: "Render raw Apache ECharts option objects in Lovelace."
