@@ -36,6 +36,40 @@ type TokenObject = {
   $round?: number; // digits
 };
 
+type DataMode = "pairs" | "names" | "values";
+
+type DataGenerator = {
+  $data: {
+    entities: string[];
+    mode?: DataMode; // default "pairs"
+    name_from?: "friendly_name" | "entity_id"; // default "friendly_name"
+
+    // value extraction
+    attr?: string; // optional: use attribute instead of state
+
+    // coercion + defaults
+    coerce?: TokenObject["$coerce"];
+    default?: unknown;
+    include_unavailable?: boolean; // default false
+
+    // reuse 2.2A transforms
+    transforms?: {
+      map?: TokenObject["$map"];
+      abs?: boolean;
+      scale?: number;
+      offset?: number;
+      min?: number;
+      max?: number;
+      clamp?: [number, number];
+      round?: number;
+    };
+  };
+};
+
+function isDataGenerator(v: unknown): v is DataGenerator {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  return Object.prototype.hasOwnProperty.call(v, "$data");
+}
 
 function isTokenObject(v: unknown): v is TokenObject {
   if (!v || typeof v !== "object" || Array.isArray(v)) return false;
@@ -121,11 +155,90 @@ function coerceValue(raw: unknown, mode: TokenObject["$coerce"] = "auto"): unkno
   return raw;
 }
 
+function resolveEntityValue(
+  hass: HomeAssistant | undefined,
+  entityId: string,
+  coerce: TokenObject["$coerce"] | undefined,
+  def: unknown,
+  attr: string | undefined,
+  transforms: DataGenerator["$data"]["transforms"] | undefined,
+  watched: Set<string>
+): unknown {
+  watched.add(entityId);
+
+  const st = hass?.states?.[entityId];
+  if (!st) return def;
+
+  const raw = attr ? (st.attributes?.[attr] as unknown) : (st.state as unknown);
+
+  const coerced = coerceValue(raw, coerce ?? "auto");
+  if (typeof coerced === "number" && Number.isNaN(coerced)) return def ?? 0;
+
+  // apply transforms by adapting them into a TokenObject shape
+  const t: TokenObject = {
+    $entity: entityId,
+    $coerce: coerce ?? "auto",
+    $default: def,
+    $map: transforms?.map,
+    $abs: transforms?.abs,
+    $scale: transforms?.scale,
+    $offset: transforms?.offset,
+    $min: transforms?.min,
+    $max: transforms?.max,
+    $clamp: transforms?.clamp,
+    $round: transforms?.round
+  };
+
+  const transformed = applyNumberTransforms(coerced, t);
+
+  if (typeof transformed === "number" && !Number.isFinite(transformed)) return def ?? 0;
+  return transformed ?? def;
+}
+
 function deepResolveTokens(
   input: unknown,
   hass: HomeAssistant | undefined,
   watched: Set<string>
 ): unknown {
+  // NEW: $data generator
+  if (isDataGenerator(input)) {
+    const spec = input.$data;
+
+    const mode: DataMode = spec.mode ?? "pairs";
+    const nameFrom = spec.name_from ?? "friendly_name";
+    const includeUnavailable = spec.include_unavailable ?? false;
+
+    const outPairs: Array<{ name: string; value: unknown }> = [];
+
+    for (const entityId of spec.entities ?? []) {
+      const st = hass?.states?.[entityId];
+
+      if (!st && !includeUnavailable) continue;
+
+      const name =
+        nameFrom === "entity_id"
+          ? entityId
+          : (st?.attributes?.friendly_name as string | undefined) ?? entityId;
+
+      const value = resolveEntityValue(
+        hass,
+        entityId,
+        spec.coerce,
+        spec.default,
+        spec.attr,
+        spec.transforms,
+        watched
+      );
+
+      outPairs.push({ name, value });
+    }
+
+    if (mode === "pairs") return outPairs;
+    if (mode === "names") return outPairs.map((p) => p.name);
+    return outPairs.map((p) => p.value);
+  }
+
+  // existing: $entity token
   if (isTokenObject(input)) {
     const entityId = input.$entity;
     watched.add(entityId);
@@ -133,31 +246,29 @@ function deepResolveTokens(
     const st = hass?.states?.[entityId];
     if (!st) return input.$default;
 
-    const raw = input.$attr
-      ? (st.attributes?.[input.$attr] as unknown)
-      : (st.state as unknown);
+    const raw = input.$attr ? (st.attributes?.[input.$attr] as unknown) : (st.state as unknown);
 
     const coerced = coerceValue(raw, input.$coerce ?? "auto");
 
-    // If number coercion fails, use default (or 0)
     if (typeof coerced === "number" && Number.isNaN(coerced)) {
-    return input.$default ?? 0;
+      return input.$default ?? 0;
     }
 
     const transformed = applyNumberTransforms(coerced, input);
 
-    // If transforms produce a non-finite number, fall back safely
     if (typeof transformed === "number" && !Number.isFinite(transformed)) {
-    return input.$default ?? 0;
+      return input.$default ?? 0;
     }
 
-    return (transformed ?? input.$default);
+    return transformed ?? input.$default;
   }
 
+  // recurse arrays
   if (Array.isArray(input)) {
     return input.map((x) => deepResolveTokens(x, hass, watched));
   }
 
+  // recurse objects
   if (input && typeof input === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
@@ -224,10 +335,7 @@ export class EchartsRawCard extends LitElement {
   }
 
   protected firstUpdated(): void {
-    const container = this.renderRoot.querySelector(
-      ".echarts-container"
-    ) as HTMLDivElement | null;
-
+    const container = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
     if (!container) return;
 
     this._chart = echarts.init(container, undefined, {
@@ -260,7 +368,7 @@ export class EchartsRawCard extends LitElement {
       return;
     }
 
-    // Phase 2.1: hass updates — re-render only if a referenced entity changed
+    // hass updates — re-render only if a referenced entity changed
     if (changed.has("hass")) {
       if (this._shouldUpdateForHassChange()) {
         this._applyOption();
@@ -275,7 +383,6 @@ export class EchartsRawCard extends LitElement {
 
     for (const entityId of this._watchedEntities) {
       const st = this.hass.states[entityId];
-      // Fingerprint includes state + last_updated; good enough for Phase 2.1
       const fp = st ? `${st.state}|${st.last_updated}` : "missing";
       const prev = this._lastFingerprints.get(entityId);
       if (prev !== fp) return true;
@@ -293,10 +400,7 @@ export class EchartsRawCard extends LitElement {
   }
 
   private _reinitChart(): void {
-    const container = this.renderRoot.querySelector(
-      ".echarts-container"
-    ) as HTMLDivElement | null;
-
+    const container = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
     if (!container) return;
 
     if (this._chart) {
@@ -318,7 +422,7 @@ export class EchartsRawCard extends LitElement {
 
     this._error = undefined;
 
-    // Resolve entity tokens (Phase 2.1)
+    // Resolve entity tokens + generators
     const watched = new Set<string>();
     const resolved = deepResolveTokens(this._config.option, this.hass, watched) as EChartsOption;
     this._watchedEntities = watched;
@@ -335,20 +439,21 @@ export class EchartsRawCard extends LitElement {
       lazyUpdate: true
     };
 
+    // Optional: special-case gauge rounding formatter token
     if ((option as any).series) {
-        for (const s of (option as any).series) {
-            if (s.type === "gauge" && s.detail?.formatter?.includes("|round")) {
-            s.detail.formatter = (val: number) => {
-                if (!Number.isFinite(val)) return "0";
-                return Math.round(val).toString() + " lx";
-            };
-            }
+      for (const s of (option as any).series) {
+        if (s.type === "gauge" && typeof s.detail?.formatter === "string" && s.detail.formatter.includes("|round")) {
+          const unit = s.detail.formatter.replace("{value|round}", "").trim();
+          s.detail.formatter = (val: number) => {
+            if (!Number.isFinite(val)) return `0${unit ? " " + unit : ""}`;
+            return `${Math.round(val)}${unit ? " " + unit : ""}`;
+          };
         }
+      }
     }
 
     try {
       this._chart.setOption(option, opts);
-      // Capture fingerprints after successful render so future hass updates can be diffed
       this._snapshotFingerprints();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -376,10 +481,7 @@ export class EchartsRawCard extends LitElement {
             `
           : nothing}
 
-        <div
-          class="echarts-container"
-          style="height: ${this._config.height ?? "300px"}"
-        ></div>
+        <div class="echarts-container" style="height: ${this._config.height ?? "300px"}"></div>
       </ha-card>
     `;
   }
