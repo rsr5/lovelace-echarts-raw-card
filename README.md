@@ -30,6 +30,7 @@ option:
   series:
     - type: line
       data: [150, 230, 224, 218, 135, 147, 260]
+```
 
 ## License
 
