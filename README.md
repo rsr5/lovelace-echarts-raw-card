@@ -30,3 +30,8 @@ option:
   series:
     - type: line
       data: [150, 230, 224, 218, 135, 147, 260]
+
+## License
+
+MIT
+Copyright (c) 2026 Robin Ridler
