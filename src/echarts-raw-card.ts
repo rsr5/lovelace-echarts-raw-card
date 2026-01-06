@@ -103,6 +103,12 @@ type HistoryGenerator = {
     sample?: { max_points: number; method?: "mean" | "last" };
 
     cache_seconds?: number;
+
+    // optional per-series override by display name OR entity_id
+    series_overrides?: Record<string, Record<string, any>>;
+
+    // optional: you can re-enable minimal_response later if you want
+    minimal_response?: boolean; // default false
   };
 };
 
@@ -210,9 +216,6 @@ function applyNumberTransforms(value: unknown, token: TokenObject): unknown {
   return x;
 }
 
-/**
- * Apply coerce + transforms (used by $data and by $history).
- */
 function applyTransformsWithSpec(
   value: unknown,
   entityId: string,
@@ -240,10 +243,6 @@ function applyTransformsWithSpec(
   return applyNumberTransforms(coerced, token);
 }
 
-/**
- * History datapoints MUST be numeric for ECharts time/value series.
- * Default coerce for history is "number" (HA history states are strings).
- */
 function coerceHistoryPointNumber(
   raw: unknown,
   entityId: string,
@@ -274,7 +273,11 @@ function resolveEntityNowValue(
 }
 
 /* ------------------------------------------------------------------
- * History decoding helpers (supports "compressed" arrays)
+ * History decoding helpers
+ * Works for:
+ *  - normal objects with entity_id/state/attributes/last_changed
+ *  - compressed arrays where only first element has entity_id/attributes
+ *  - (optional) minimal_response short keys (e/s/a/lc/lu)
  * ------------------------------------------------------------------ */
 
 type HistoryStateLike = Record<string, any>;
@@ -315,7 +318,7 @@ function histTimestampMs(s: HistoryStateLike): number | undefined {
 }
 
 /* ------------------------------------------------------------------
- * Simple downsampling (bucket mean/last)
+ * Downsample
  * ------------------------------------------------------------------ */
 
 function downsample(
@@ -324,6 +327,7 @@ function downsample(
   method: "mean" | "last"
 ): Array<[number, unknown]> {
   if (points.length <= maxPoints || maxPoints <= 1) return points;
+
   const firstT = points[0][0];
   const lastT = points[points.length - 1][0];
   const span = Math.max(1, lastT - firstT);
@@ -361,7 +365,7 @@ function downsample(
 }
 
 /* ------------------------------------------------------------------
- * Resolver (async for $history)
+ * Async resolver
  * ------------------------------------------------------------------ */
 
 async function deepResolveTokensAsync(
@@ -447,6 +451,28 @@ async function deepResolveTokensAsync(
 }
 
 /* ------------------------------------------------------------------
+ * Helper: find minimum cache_seconds inside an option tree
+ * ------------------------------------------------------------------ */
+
+function minHistoryCacheSecondsInOptionTree(option: unknown, fallback = 30): number {
+  let min = Infinity;
+
+  const walk = (v: unknown) => {
+    if (!v) return;
+    if (isHistoryGenerator(v)) {
+      const cs = v.$history.cache_seconds;
+      if (typeof cs === "number" && cs > 0) min = Math.min(min, cs);
+      return;
+    }
+    if (Array.isArray(v)) return v.forEach(walk);
+    if (typeof v === "object") Object.values(v as any).forEach(walk);
+  };
+
+  walk(option);
+  return Number.isFinite(min) ? min : fallback;
+}
+
+/* ------------------------------------------------------------------
  * Card
  * ------------------------------------------------------------------ */
 
@@ -471,7 +497,11 @@ export class EchartsRawCard extends LitElement {
   private _watchedEntities = new Set<string>();
   private _lastFingerprints = new Map<string, string>();
 
+  // history cache
   private _historyCache = new Map<string, { ts: number; value: unknown; expiresAt: number }>();
+
+  // prevent hass-driven re-fetch storms
+  private _nextHistoryAllowedMs = 0;
 
   public setConfig(config: LovelaceCardConfig): void {
     if (!config) throw new Error("Invalid configuration");
@@ -483,6 +513,9 @@ export class EchartsRawCard extends LitElement {
     this._loading = false;
     this._watchedEntities.clear();
     this._lastFingerprints.clear();
+
+    // reset throttle on config change
+    this._nextHistoryAllowedMs = 0;
   }
 
   disconnectedCallback(): void {
@@ -513,6 +546,17 @@ export class EchartsRawCard extends LitElement {
     }
 
     if (changed.has("hass")) {
+      // ✅ FIX 1: While a $history option is currently loading, don't restart due to hass churn.
+      if (this._loading && this._config?.option && containsHistoryToken(this._config.option)) {
+        return;
+      }
+
+      // If the card contains $history, do NOT continuously re-run on hass churn;
+      // only allow once per cache window (minimum of all cache_seconds tokens).
+      if (this._config?.option && containsHistoryToken(this._config.option)) {
+        if (Date.now() < this._nextHistoryAllowedMs) return;
+      }
+
       if (this._shouldUpdateForHassChange()) {
         this._applyOption();
       }
@@ -545,6 +589,8 @@ export class EchartsRawCard extends LitElement {
   private _historyCacheKey(spec: HistoryGenerator["$history"], startMs: number, endMs: number): string {
     const ids = (spec.entities ?? []).map((e) => normalizeEntitySpec(e).id).join(",");
     const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
+    const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
+    const minimal = spec.minimal_response ? "1" : "0";
     return [
       ids,
       startMs,
@@ -554,7 +600,9 @@ export class EchartsRawCard extends LitElement {
       JSON.stringify(spec.transforms ?? {}),
       spec.mode ?? "",
       spec.series_type ?? "",
-      sample
+      sample,
+      overrides,
+      minimal
     ].join("|");
   }
 
@@ -562,7 +610,15 @@ export class EchartsRawCard extends LitElement {
     if (!this.hass) return [];
 
     const now = Date.now();
-    const endMs = parseTime(spec.end, now);
+
+    // ✅ FIX 3: bucket endMs when end is implicit so cache keys & HA params are stable inside cache_seconds
+    const cacheSeconds = spec.cache_seconds ?? 30;
+    let endMs = parseTime(spec.end, now);
+    if (spec.end == null) {
+      const bucket = Math.max(1, cacheSeconds) * 1000;
+      endMs = Math.floor(endMs / bucket) * bucket;
+    }
+
     const startMs =
       spec.start != null
         ? parseTime(spec.start, endMs - 24 * 3600_000)
@@ -570,7 +626,6 @@ export class EchartsRawCard extends LitElement {
 
     for (const e of spec.entities ?? []) this._watchedEntities.add(normalizeEntitySpec(e).id);
 
-    const cacheSeconds = spec.cache_seconds ?? 30;
     const cacheKey = this._historyCacheKey(spec, startMs, endMs);
     const cached = this._historyCache.get(cacheKey);
     if (cached && cached.expiresAt > now) return cached.value;
@@ -581,8 +636,14 @@ export class EchartsRawCard extends LitElement {
 
     const params = new URLSearchParams();
     params.set("end_time", endIso);
-    params.set("minimal_response", "1");
-    for (const id of entityIds) params.append("filter_entity_id", id);
+
+    // default OFF (your own testing: commenting it fixed the chart)
+    if (spec.minimal_response) params.set("minimal_response", "1");
+
+    // ✅ IMPORTANT:
+    // HA history frequently ignores repeated filter_entity_id params (keeps only the first).
+    // Use a single comma-separated filter_entity_id to reliably fetch multiple entities.
+    params.set("filter_entity_id", entityIds.join(","));
 
     // @ts-expect-error: HA has callApi at runtime
     const hist = (await this.hass.callApi(
@@ -595,48 +656,44 @@ export class EchartsRawCard extends LitElement {
     const showSymbol = spec.show_symbol ?? false;
 
     const idToName = new Map<string, string>();
+    const nameToId = new Map<string, string>();
+
     for (const raw of spec.entities ?? []) {
       const { id, name: override } = normalizeEntitySpec(raw);
       const st = this.hass.states?.[id];
-      const name =
+      const displayName =
         override ??
         (nameFrom === "entity_id"
           ? id
           : (st?.attributes?.friendly_name as string | undefined) ?? id);
-      idToName.set(id, name);
+
+      idToName.set(id, displayName);
+      nameToId.set(displayName, id);
     }
 
     const perEntity: Record<string, Array<[number, number]>> = {};
     for (const id of entityIds) perEntity[id] = [];
 
-    // IMPORTANT FIX:
-    // Each inner array is ONE ENTITY'S history. First row may contain entity_id/attrs,
-    // later rows often only contain state + last_changed.
+    // IMPORTANT: HA history often returns "compressed" arrays:
+    // - arr[0] has entity_id + attributes + timestamps
+    // - subsequent items omit entity_id and attributes, but include state + last_changed
     for (const arr of hist ?? []) {
-      let currentId: string | undefined;
-      let lastAttrs: Record<string, unknown> | undefined;
+      if (!Array.isArray(arr) || arr.length === 0) continue;
 
-      for (const s of arr ?? []) {
-        const maybeId = histEntityId(s);
-        if (maybeId) currentId = maybeId;
+      const arrEntityId = histEntityId(arr[0] as any);
 
-        const attrs = histAttributes(s);
-        if (attrs) lastAttrs = attrs;
+      for (const s of arr) {
+        const id = histEntityId(s as any) ?? arrEntityId;
+        if (!id || !perEntity[id]) continue;
 
-        if (!currentId || !perEntity[currentId]) {
-          // If the first row hasn't told us the id yet, we can't do anything with this datapoint.
-          continue;
-        }
-
-        const ts = histTimestampMs(s);
+        const ts = histTimestampMs(s as any);
         if (ts == null) continue;
 
-        const raw = spec.attr ? (attrs ?? lastAttrs)?.[spec.attr] : histState(s);
-
-        const n = coerceHistoryPointNumber(raw, currentId, spec.default, spec.coerce, spec.transforms);
+        const raw = spec.attr ? histAttributes(s as any)?.[spec.attr] : histState(s as any);
+        const n = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
         if (n == null) continue;
 
-        perEntity[currentId].push([ts, n]);
+        perEntity[id].push([ts, n]);
       }
     }
 
@@ -661,12 +718,26 @@ export class EchartsRawCard extends LitElement {
       const id = entityIds[0];
       result = perEntity[id] ?? [];
     } else {
-      result = entityIds.map((id) => ({
-        name: idToName.get(id) ?? id,
-        type: seriesType,
-        showSymbol,
-        data: perEntity[id] ?? []
-      }));
+      const series = entityIds.map((id) => {
+        const displayName = idToName.get(id) ?? id;
+        const base = {
+          name: displayName,
+          type: seriesType,
+          showSymbol,
+          data: perEntity[id] ?? []
+        };
+
+        // allow overrides by display name OR by entity id
+        const overridesByName = spec.series_overrides?.[displayName];
+        const overridesById = spec.series_overrides?.[id];
+        const overrides = overridesByName ?? overridesById;
+
+        if (overrides && typeof overrides === "object") Object.assign(base, overrides);
+
+        return base;
+      });
+
+      result = series;
     }
 
     this._historyCache.set(cacheKey, {
@@ -692,7 +763,14 @@ export class EchartsRawCard extends LitElement {
     const runId = ++this._runId;
 
     const needsHistory = containsHistoryToken(config.option);
-    if (needsHistory) this._loading = true;
+
+    // ✅ FIX 2: optimistic throttle BEFORE awaiting history fetch, so hass churn can't restart mid-flight
+    if (needsHistory) {
+      const ttl = minHistoryCacheSecondsInOptionTree(config.option, 30) * 1000;
+      this._nextHistoryAllowedMs = Date.now() + ttl;
+      this._loading = true;
+    }
+
     this._error = undefined;
 
     try {
@@ -705,6 +783,7 @@ export class EchartsRawCard extends LitElement {
         async (spec) => this._fetchHistory(spec)
       )) as EChartsOption;
 
+      // cancelled/replaced
       if (runId !== this._runId) return;
       if (this._chart !== chart) return;
 
@@ -723,6 +802,14 @@ export class EchartsRawCard extends LitElement {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
+
+      // CRITICAL: clear the chart so ECharts doesn't keep asserting on resize/update
+      try {
+        this._chart?.clear();
+      } catch {
+        // ignore
+      }
+
       // eslint-disable-next-line no-console
       console.error("[echarts-raw-card] applyOption error:", err);
     } finally {
