@@ -503,6 +503,9 @@ export class EchartsRawCard extends LitElement {
   // prevent hass-driven re-fetch storms
   private _nextHistoryAllowedMs = 0;
 
+  // ✅ NEW: track current ECharts theme ("dark" | undefined)
+  private _echartsTheme: string | undefined;
+
   public setConfig(config: LovelaceCardConfig): void {
     if (!config) throw new Error("Invalid configuration");
     if (!("option" in config)) throw new Error("Missing required `option`");
@@ -516,6 +519,9 @@ export class EchartsRawCard extends LitElement {
 
     // reset throttle on config change
     this._nextHistoryAllowedMs = 0;
+
+    // ✅ NEW: ensure theme is re-evaluated after config changes
+    this._echartsTheme = undefined;
   }
 
   disconnectedCallback(): void {
@@ -527,11 +533,47 @@ export class EchartsRawCard extends LitElement {
     this._runId++;
   }
 
+  // ✅ NEW: HA dark-mode helpers
+  private _isHassDarkMode(hass: HomeAssistant | undefined): boolean {
+    return Boolean(hass?.themes?.darkMode);
+  }
+
+  private _desiredEchartsTheme(hass: HomeAssistant | undefined): string | undefined {
+    // ECharts built-in theme: "dark". Light is default (undefined)
+    return this._isHassDarkMode(hass) ? "dark" : undefined;
+  }
+
+  private _recreateChartForTheme(): void {
+    const el = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+    if (!el) return;
+
+    // Dispose old instance
+    try {
+      this._chart?.dispose();
+    } catch {
+      // ignore
+    }
+    this._chart = undefined;
+
+    // Rebind resize observer cleanly
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
+    this._resizeObserver.observe(el);
+
+    // Create new instance with current theme
+    this._echartsTheme = this._desiredEchartsTheme(this.hass);
+    this._chart = echarts.init(el, this._echartsTheme, {
+      renderer: this._config?.renderer ?? "canvas"
+    });
+  }
+
   protected firstUpdated(): void {
     const el = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
     if (!el) return;
 
-    this._chart = echarts.init(el, undefined, { renderer: this._config?.renderer ?? "canvas" });
+    // ✅ initial theme based on current HA mode
+    this._echartsTheme = this._desiredEchartsTheme(this.hass);
+    this._chart = echarts.init(el, this._echartsTheme, { renderer: this._config?.renderer ?? "canvas" });
 
     this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
     this._resizeObserver.observe(el);
@@ -541,11 +583,21 @@ export class EchartsRawCard extends LitElement {
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has("_config")) {
+      // If renderer changed, recreate chart too (init opts include renderer)
+      if (this._chart) this._recreateChartForTheme();
       this._applyOption();
       return;
     }
 
     if (changed.has("hass")) {
+      // ✅ Detect HA theme (dark/light) switch and recreate ECharts instance
+      const nextTheme = this._desiredEchartsTheme(this.hass);
+      if (nextTheme !== this._echartsTheme) {
+        this._recreateChartForTheme();
+        this._applyOption();
+        return;
+      }
+
       // ✅ FIX 1: While a $history option is currently loading, don't restart due to hass churn.
       if (this._loading && this._config?.option && containsHistoryToken(this._config.option)) {
         return;
