@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // ─────────────────────────────────────────────
+  // Dev server (unchanged from yours)
+  // ─────────────────────────────────────────────
   server: {
     host: true,
     port: 5173,
@@ -11,21 +14,45 @@ export default defineConfig({
       "Access-Control-Allow-Headers": "*"
     }
   },
+
+  // ─────────────────────────────────────────────
+  // Build for Home Assistant
+  // ─────────────────────────────────────────────
   build: {
+    // HA + modern browsers are fine with this
     target: "es2022",
-    sourcemap: false,
+
+    // 🔴 KEEP stack traces readable while debugging
+    sourcemap: true,
+
+    // 🔴 DO NOT minify (critical for ECharts debugging)
+    minify: false,
+
+    // HA prefers single-file JS
+    cssCodeSplit: false,
+
     lib: {
       entry: "src/index.ts",
       formats: ["es"],
       fileName: () => "echarts-raw-card.js"
     },
+
     rollupOptions: {
       output: {
+        // 🔴 Force everything into ONE file
         inlineDynamicImports: true
       }
     },
+
     outDir: "dist",
     emptyOutDir: true
+  },
+
+  // ─────────────────────────────────────────────
+  // Ensure esbuild doesn’t sneak minification in
+  // ─────────────────────────────────────────────
+  esbuild: {
+    minify: false,
+    keepNames: true
   }
 });
-
