@@ -4676,9 +4676,6 @@ var encodeBase64 = function() {
     };
   }
   return function(str) {
-    if (process.env.NODE_ENV !== "production") {
-      logError("Base64 isn't natively supported in the current environment.");
-    }
     return null;
   };
 }();
@@ -6259,7 +6256,7 @@ var Element = function() {
     this.states = {};
     this._init(props);
   }
-  __name(Element2, "Element");
+  __name(Element2, "Element2");
   Element2.prototype._init = function(props) {
     this.attr(props);
   };
@@ -6735,15 +6732,9 @@ var Element = function() {
   };
   Element2.prototype._attachComponent = function(componentEl) {
     if (componentEl.__zr && !componentEl.__hostTarget) {
-      if (process.env.NODE_ENV !== "production") {
-        throw new Error("Text element has been added to zrender.");
-      }
       return;
     }
     if (componentEl === this) {
-      if (process.env.NODE_ENV !== "production") {
-        throw new Error("Recursive component attachment.");
-      }
       return;
     }
     var zr = this.__zr;
@@ -6789,11 +6780,6 @@ var Element = function() {
     }
     if (previousTextContent && previousTextContent !== textEl) {
       this.removeTextContent();
-    }
-    if (process.env.NODE_ENV !== "production") {
-      if (textEl.__zr && !textEl.__hostTarget) {
-        throw new Error("Text element has been added to zrender.");
-      }
     }
     textEl.innerTransformable = new Transformable();
     this._attachComponent(textEl);
@@ -6912,12 +6898,6 @@ var Element = function() {
   };
   Element2.prototype.animate = function(key, loop, allowDiscreteAnimation) {
     var target = key ? this[key] : this;
-    if (process.env.NODE_ENV !== "production") {
-      if (!target) {
-        logError('Property "' + key + '" is not existed in element ' + this.id);
-        return;
-      }
-    }
     var animator = new Animator(target, loop, allowDiscreteAnimation);
     key && (animator.targetName = key);
     this.addAnimator(animator, key);
@@ -6983,20 +6963,9 @@ var Element = function() {
     elProto.name = "";
     elProto.ignore = elProto.silent = elProto.isGroup = elProto.draggable = elProto.dragging = elProto.ignoreClip = elProto.__inHover = false;
     elProto.__dirty = REDRAW_BIT;
-    var logs = {};
-    function logDeprecatedError(key, xKey, yKey) {
-      if (!logs[key + xKey + yKey]) {
-        console.warn("DEPRECATED: '" + key + "' has been deprecated. use '" + xKey + "', '" + yKey + "' instead");
-        logs[key + xKey + yKey] = true;
-      }
-    }
-    __name(logDeprecatedError, "logDeprecatedError");
     function createLegacyProperty(key, privateKey, xKey, yKey) {
       Object.defineProperty(elProto, key, {
         get: /* @__PURE__ */ __name(function() {
-          if (process.env.NODE_ENV !== "production") {
-            logDeprecatedError(key, xKey, yKey);
-          }
           if (!this[privateKey]) {
             var pos = this[privateKey] = [];
             enhanceArray(this, pos);
@@ -7004,9 +6973,6 @@ var Element = function() {
           return this[privateKey];
         }, "get"),
         set: /* @__PURE__ */ __name(function(pos) {
-          if (process.env.NODE_ENV !== "production") {
-            logDeprecatedError(key, xKey, yKey);
-          }
           this[xKey] = pos[0];
           this[yKey] = pos[1];
           this[privateKey] = pos;
@@ -7254,7 +7220,7 @@ var Group$3 = function(_super) {
     _this.attr(opts);
     return _this;
   }
-  __name(Group2, "Group");
+  __name(Group2, "Group2");
   Group2.prototype.childrenRef = function() {
     return this._children;
   };
@@ -7280,11 +7246,6 @@ var Group$3 = function(_super) {
       if (child !== this && child.parent !== this) {
         this._children.push(child);
         this._doAdd(child);
-      }
-      if (process.env.NODE_ENV !== "production") {
-        if (child.__hostTarget) {
-          throw "This elemenet has been used as an attachment";
-        }
       }
     }
     return this;
@@ -7468,11 +7429,6 @@ var ZRender = function() {
     if (!painterCtors[rendererType]) {
       rendererType = keys(painterCtors)[0];
     }
-    if (process.env.NODE_ENV !== "production") {
-      if (!painterCtors[rendererType]) {
-        throw new Error("Renderer '" + rendererType + "' is not imported. Please import it first.");
-      }
-    }
     opts.useDirtyRect = opts.useDirtyRect == null ? false : opts.useDirtyRect;
     var painter = new painterCtors[rendererType](dom, storage2, opts, id);
     var ssrMode = opts.ssr || painter.ssrOnly;
@@ -7498,7 +7454,7 @@ var ZRender = function() {
       this.animation.start();
     }
   }
-  __name(ZRender2, "ZRender");
+  __name(ZRender2, "ZRender2");
   ZRender2.prototype.add = function(el) {
     if (this._disposed || !el) {
       return;
@@ -7827,10 +7783,10 @@ function getPrecisionSafe(val) {
 }
 __name(getPrecisionSafe, "getPrecisionSafe");
 function getPixelPrecision(dataExtent, pixelExtent) {
-  var log2 = Math.log;
+  var log = Math.log;
   var LN10 = Math.LN10;
-  var dataQuantity = Math.floor(log2(dataExtent[1] - dataExtent[0]) / LN10);
-  var sizeQuantity = Math.round(log2(Math.abs(pixelExtent[1] - pixelExtent[0])) / LN10);
+  var dataQuantity = Math.floor(log(dataExtent[1] - dataExtent[0]) / LN10);
+  var sizeQuantity = Math.round(log(Math.abs(pixelExtent[1] - pixelExtent[0])) / LN10);
   var precision = Math.min(Math.max(-dataQuantity + sizeQuantity, 0), 20);
   return !isFinite(precision) ? 20 : precision;
 }
@@ -8019,80 +7975,6 @@ function getLeastCommonMultiple(a2, b2) {
   return a2 * b2 / getGreatestCommonDividor(a2, b2);
 }
 __name(getLeastCommonMultiple, "getLeastCommonMultiple");
-var ECHARTS_PREFIX = "[ECharts] ";
-var storedLogs = {};
-var hasConsole = typeof console !== "undefined" && console.warn && console.log;
-function outputLog(type, str, onlyOnce) {
-  if (hasConsole) {
-    if (onlyOnce) {
-      if (storedLogs[str]) {
-        return;
-      }
-      storedLogs[str] = true;
-    }
-    console[type](ECHARTS_PREFIX + str);
-  }
-}
-__name(outputLog, "outputLog");
-function log(str, onlyOnce) {
-  outputLog("log", str, onlyOnce);
-}
-__name(log, "log");
-function warn(str, onlyOnce) {
-  outputLog("warn", str, onlyOnce);
-}
-__name(warn, "warn");
-function error(str, onlyOnce) {
-  outputLog("error", str, onlyOnce);
-}
-__name(error, "error");
-function deprecateLog(str) {
-  if (process.env.NODE_ENV !== "production") {
-    outputLog("warn", "DEPRECATED: " + str, true);
-  }
-}
-__name(deprecateLog, "deprecateLog");
-function deprecateReplaceLog(oldOpt, newOpt, scope) {
-  if (process.env.NODE_ENV !== "production") {
-    deprecateLog((scope ? "[" + scope + "]" : "") + (oldOpt + " is deprecated, use " + newOpt + " instead."));
-  }
-}
-__name(deprecateReplaceLog, "deprecateReplaceLog");
-function makePrintable() {
-  var hintInfo = [];
-  for (var _i = 0; _i < arguments.length; _i++) {
-    hintInfo[_i] = arguments[_i];
-  }
-  var msg = "";
-  if (process.env.NODE_ENV !== "production") {
-    var makePrintableStringIfPossible_1 = /* @__PURE__ */ __name(function(val) {
-      return val === void 0 ? "undefined" : val === Infinity ? "Infinity" : val === -Infinity ? "-Infinity" : eqNaN(val) ? "NaN" : val instanceof Date ? "Date(" + val.toISOString() + ")" : isFunction(val) ? "function () { ... }" : isRegExp(val) ? val + "" : null;
-    }, "makePrintableStringIfPossible_1");
-    msg = map$1(hintInfo, function(arg) {
-      if (isString(arg)) {
-        return arg;
-      } else {
-        var printableStr = makePrintableStringIfPossible_1(arg);
-        if (printableStr != null) {
-          return printableStr;
-        } else if (typeof JSON !== "undefined" && JSON.stringify) {
-          try {
-            return JSON.stringify(arg, function(n3, val) {
-              var printableStr2 = makePrintableStringIfPossible_1(val);
-              return printableStr2 == null ? val : printableStr2;
-            });
-          } catch (err) {
-            return "?";
-          }
-        } else {
-          return "?";
-        }
-      }
-    }).join(" ");
-  }
-  return msg;
-}
-__name(makePrintable, "makePrintable");
 function throwError(msg) {
   throw new Error(msg);
 }
@@ -8141,14 +8023,6 @@ function mappingToExists(existings, newCmptOptions, mode) {
     if (!isObject$3(cmptOption)) {
       newCmptOptions[index] = null;
       return;
-    }
-    if (process.env.NODE_ENV !== "production") {
-      if (cmptOption.id != null && !isValidIdOrName(cmptOption.id)) {
-        warnInvalidateIdOrName(cmptOption.id);
-      }
-      if (cmptOption.name != null && !isValidIdOrName(cmptOption.name)) {
-        warnInvalidateIdOrName(cmptOption.name);
-      }
     }
   });
   var result = prepareResult(existings, existingIdIdxMap, mode);
@@ -8301,11 +8175,6 @@ function keyExistAndEqual(attr, obj1, obj2) {
 }
 __name(keyExistAndEqual, "keyExistAndEqual");
 function makeComparableKey(val) {
-  if (process.env.NODE_ENV !== "production") {
-    if (val == null) {
-      throw new Error();
-    }
-  }
   return convertOptionIdName(val, "");
 }
 __name(makeComparableKey, "makeComparableKey");
@@ -8316,16 +8185,6 @@ function convertOptionIdName(idOrName, defaultValue) {
   return isString(idOrName) ? idOrName : isNumber(idOrName) || isStringSafe(idOrName) ? idOrName + "" : defaultValue;
 }
 __name(convertOptionIdName, "convertOptionIdName");
-function warnInvalidateIdOrName(idOrName) {
-  if (process.env.NODE_ENV !== "production") {
-    warn("`" + idOrName + "` is invalid id or name. Must be a string or number.");
-  }
-}
-__name(warnInvalidateIdOrName, "warnInvalidateIdOrName");
-function isValidIdOrName(idOrName) {
-  return isStringSafe(idOrName) || isNumeric(idOrName);
-}
-__name(isValidIdOrName, "isValidIdOrName");
 function isNameSpecified(componentModel) {
   var name = componentModel.name;
   return !!(name && name.indexOf(DUMMY_COMPONENT_NAME_PREFIX));
@@ -8602,13 +8461,6 @@ __name(isExtendedClass, "isExtendedClass");
 function enableClassExtend(rootClz, mandatoryMethods) {
   rootClz.$constructor = rootClz;
   rootClz.extend = function(proto2) {
-    if (process.env.NODE_ENV !== "production") {
-      each$f(mandatoryMethods, function(method) {
-        if (!proto2[method]) {
-          console.warn("Method `" + method + "` should be implemented" + (proto2.type ? " in " + proto2.type : "") + ".");
-        }
-      });
-    }
     var superClass = this;
     var ExtendedClass;
     if (isESClass(superClass)) {
@@ -8649,9 +8501,6 @@ var classBase = Math.round(Math.random() * 10);
 function enableClassCheck(target) {
   var classAttr = ["__\0is_clz", classBase++].join("_");
   target.prototype[classAttr] = true;
-  if (process.env.NODE_ENV !== "production") {
-    assert(!target.isInstance, 'The method "is" can not be defined.');
-  }
   target.isInstance = function(obj) {
     return !!(obj && obj[classAttr]);
   };
@@ -8678,11 +8527,6 @@ function enableClassManagement(target) {
       clz.prototype.type = componentFullType;
       var componentTypeInfo = parseClassType(componentFullType);
       if (!componentTypeInfo.sub) {
-        if (process.env.NODE_ENV !== "production") {
-          if (storage2[componentTypeInfo.main]) {
-            console.warn(componentTypeInfo.main + " exists.");
-          }
-        }
         storage2[componentTypeInfo.main] = clz;
       } else if (componentTypeInfo.sub !== IS_CONTAINER) {
         var container = makeContainer(componentTypeInfo);
@@ -11540,7 +11384,7 @@ var ZRText = function(_super) {
     _this.attr(opts);
     return _this;
   }
-  __name(ZRText2, "ZRText");
+  __name(ZRText2, "ZRText2");
   ZRText2.prototype.childrenRef = function() {
     return this._children;
   };
@@ -11631,9 +11475,6 @@ var ZRText = function(_super) {
     this._defaultStyle = defaultTextStyle || DEFAULT_RICH_TEXT_COLOR;
   };
   ZRText2.prototype.setTextContent = function(textContent) {
-    if (process.env.NODE_ENV !== "production") {
-      throw new Error("Can't attach text on another text");
-    }
   };
   ZRText2.prototype._mergeStyle = function(targetStyle, sourceStyle) {
     if (!sourceStyle) {
@@ -12364,9 +12205,6 @@ function blurSeriesFromHighlightPayload(seriesModel, payload, api) {
   var seriesIndex = seriesModel.seriesIndex;
   var data = seriesModel.getData(payload.dataType);
   if (!data) {
-    if (process.env.NODE_ENV !== "production") {
-      error("Unknown dataType " + payload.dataType);
-    }
     return;
   }
   var dataIndex = queryDataIndex(data, payload);
@@ -12410,9 +12248,6 @@ function findComponentHighDownDispatchers(componentMainType, componentIndex, nam
   var dispatchers = view.findHighDownDispatchers(name);
   var focusSelf;
   for (var i2 = 0; i2 < dispatchers.length; i2++) {
-    if (process.env.NODE_ENV !== "production" && !isHighDownDispatcher(dispatchers[i2])) {
-      error("param should be highDownDispatcher");
-    }
     if (getECData(dispatchers[i2]).focus === "self") {
       focusSelf = true;
       break;
@@ -12425,9 +12260,6 @@ function findComponentHighDownDispatchers(componentMainType, componentIndex, nam
 }
 __name(findComponentHighDownDispatchers, "findComponentHighDownDispatchers");
 function handleGlobalMouseOverForHighDown(dispatcher, e2, api) {
-  if (process.env.NODE_ENV !== "production" && !isHighDownDispatcher(dispatcher)) {
-    error("param should be highDownDispatcher");
-  }
   var ecData = getECData(dispatcher);
   var _a2 = findComponentHighDownDispatchers(ecData.componentMainType, ecData.componentIndex, ecData.componentHighDownName, api), dispatchers = _a2.dispatchers, focusSelf = _a2.focusSelf;
   if (dispatchers) {
@@ -12447,9 +12279,6 @@ function handleGlobalMouseOverForHighDown(dispatcher, e2, api) {
 }
 __name(handleGlobalMouseOverForHighDown, "handleGlobalMouseOverForHighDown");
 function handleGlobalMouseOutForHighDown(dispatcher, e2, api) {
-  if (process.env.NODE_ENV !== "production" && !isHighDownDispatcher(dispatcher)) {
-    error("param should be highDownDispatcher");
-  }
   allLeaveBlur(api);
   var ecData = getECData(dispatcher);
   var dispatchers = findComponentHighDownDispatchers(ecData.componentMainType, ecData.componentIndex, ecData.componentHighDownName, api).dispatchers;
@@ -14777,11 +14606,6 @@ function setTokenTextStyle(textStyle, textStyleModel, globalTextStyle, opt, isNo
   var strokeColor = textStyleModel.getShallow("textBorderColor");
   var opacity = retrieve2(textStyleModel.getShallow("opacity"), globalTextStyle.opacity);
   if (fillColor === "inherit" || fillColor === "auto") {
-    if (process.env.NODE_ENV !== "production") {
-      if (fillColor === "auto") {
-        deprecateReplaceLog("color: 'auto'", "color: 'inherit'");
-      }
-    }
     if (inheritColor) {
       fillColor = inheritColor;
     } else {
@@ -14789,11 +14613,6 @@ function setTokenTextStyle(textStyle, textStyleModel, globalTextStyle, opt, isNo
     }
   }
   if (strokeColor === "inherit" || strokeColor === "auto") {
-    if (process.env.NODE_ENV !== "production") {
-      if (strokeColor === "auto") {
-        deprecateReplaceLog("color: 'auto'", "color: 'inherit'");
-      }
-    }
     if (inheritColor) {
       strokeColor = inheritColor;
     } else {
@@ -14866,19 +14685,9 @@ function setTokenTextStyle(textStyle, textStyleModel, globalTextStyle, opt, isNo
       textStyle.borderDash = borderType;
     }
     if ((textStyle.backgroundColor === "auto" || textStyle.backgroundColor === "inherit") && inheritColor) {
-      if (process.env.NODE_ENV !== "production") {
-        if (textStyle.backgroundColor === "auto") {
-          deprecateReplaceLog("backgroundColor: 'auto'", "backgroundColor: 'inherit'");
-        }
-      }
       textStyle.backgroundColor = inheritColor;
     }
     if ((textStyle.borderColor === "auto" || textStyle.borderColor === "inherit") && inheritColor) {
-      if (process.env.NODE_ENV !== "production") {
-        if (textStyle.borderColor === "auto") {
-          deprecateReplaceLog("borderColor: 'auto'", "borderColor: 'inherit'");
-        }
-      }
       textStyle.borderColor = inheritColor;
     }
   }
@@ -15173,9 +14982,6 @@ function enableTopologicalTravel(entity, dependencyGetter) {
     }
     each$f(targetNameSet, function() {
       var errMsg = "";
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = makePrintable("Circular dependency may exists: ", targetNameSet, targetNameList, fullNameList);
-      }
       throw new Error(errMsg);
     });
     function removeEdge(succComponentType) {
@@ -16599,11 +16405,6 @@ function concatInternalOptions(ecModel, mainType, newCmptOptionList) {
   if (!internalOptions) {
     return newCmptOptionList;
   }
-  if (process.env.NODE_ENV !== "production") {
-    for (var i2 = 0; i2 < internalOptions.length; i2++) {
-      assert(isComponentIdInternal(internalOptions[i2]));
-    }
-  }
   return newCmptOptionList.concat(internalOptions);
 }
 __name(concatInternalOptions, "concatInternalOptions");
@@ -16672,71 +16473,6 @@ var assertSeriesInitialized;
 var initBase;
 var OPTION_INNER_KEY = "\0_ec_inner";
 var OPTION_INNER_VALUE = 1;
-var BUITIN_COMPONENTS_MAP = {
-  grid: "GridComponent",
-  polar: "PolarComponent",
-  geo: "GeoComponent",
-  singleAxis: "SingleAxisComponent",
-  parallel: "ParallelComponent",
-  calendar: "CalendarComponent",
-  graphic: "GraphicComponent",
-  toolbox: "ToolboxComponent",
-  tooltip: "TooltipComponent",
-  axisPointer: "AxisPointerComponent",
-  brush: "BrushComponent",
-  title: "TitleComponent",
-  timeline: "TimelineComponent",
-  markPoint: "MarkPointComponent",
-  markLine: "MarkLineComponent",
-  markArea: "MarkAreaComponent",
-  legend: "LegendComponent",
-  dataZoom: "DataZoomComponent",
-  visualMap: "VisualMapComponent",
-  // aria: 'AriaComponent',
-  // dataset: 'DatasetComponent',
-  // Dependencies
-  xAxis: "GridComponent",
-  yAxis: "GridComponent",
-  angleAxis: "PolarComponent",
-  radiusAxis: "PolarComponent"
-};
-var BUILTIN_CHARTS_MAP = {
-  line: "LineChart",
-  bar: "BarChart",
-  pie: "PieChart",
-  scatter: "ScatterChart",
-  radar: "RadarChart",
-  map: "MapChart",
-  tree: "TreeChart",
-  treemap: "TreemapChart",
-  graph: "GraphChart",
-  gauge: "GaugeChart",
-  funnel: "FunnelChart",
-  parallel: "ParallelChart",
-  sankey: "SankeyChart",
-  boxplot: "BoxplotChart",
-  candlestick: "CandlestickChart",
-  effectScatter: "EffectScatterChart",
-  lines: "LinesChart",
-  heatmap: "HeatmapChart",
-  pictorialBar: "PictorialBarChart",
-  themeRiver: "ThemeRiverChart",
-  sunburst: "SunburstChart",
-  custom: "CustomChart"
-};
-var componetsMissingLogPrinted = {};
-function checkMissingComponents(option) {
-  each$f(option, function(componentOption, mainType) {
-    if (!ComponentModel.hasClass(mainType)) {
-      var componentImportName = BUITIN_COMPONENTS_MAP[mainType];
-      if (componentImportName && !componetsMissingLogPrinted[componentImportName]) {
-        error("Component " + mainType + " is used but not imported.\nimport { " + componentImportName + " } from 'echarts/components';\necharts.use([" + componentImportName + "]);");
-        componetsMissingLogPrinted[componentImportName] = true;
-      }
-    }
-  });
-}
-__name(checkMissingComponents, "checkMissingComponents");
 var GlobalModel = (
   /** @class */
   function(_super) {
@@ -16744,7 +16480,7 @@ var GlobalModel = (
     function GlobalModel2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
-    __name(GlobalModel2, "GlobalModel");
+    __name(GlobalModel2, "GlobalModel2");
     GlobalModel2.prototype.init = function(option, parentModel, ecModel, theme2, locale, optionManager) {
       theme2 = theme2 || {};
       this.option = null;
@@ -16753,10 +16489,6 @@ var GlobalModel = (
       this._optionManager = optionManager;
     };
     GlobalModel2.prototype.setOption = function(option, opts, optionPreprocessorFuncs2) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(option != null, "option is null/undefined");
-        assert(option[OPTION_INNER_KEY] !== OPTION_INNER_VALUE, "please use chart.getOption()");
-      }
       var innerOpt = normalizeSetOptionInput(opts);
       this._optionManager.setOption(option, optionPreprocessorFuncs2, innerOpt);
       this._resetOption(null, innerOpt);
@@ -16769,9 +16501,6 @@ var GlobalModel = (
       var optionManager = this._optionManager;
       if (!type || type === "recreate") {
         var baseOption = optionManager.mountOption(type === "recreate");
-        if (process.env.NODE_ENV !== "production") {
-          checkMissingComponents(baseOption);
-        }
         if (!this.option || type === "recreate") {
           initBase(this, baseOption);
         } else {
@@ -16848,7 +16577,6 @@ var GlobalModel = (
         var cmptsByMainType = [];
         var cmptsCountByMainType = 0;
         var tooltipExists;
-        var tooltipWarningLogged;
         each$f(mappingResult, function(resultItem, index) {
           var componentModel = resultItem.existing;
           var newCmptOption = resultItem.newOption;
@@ -16866,28 +16594,10 @@ var GlobalModel = (
               // Give a more detailed warn later if series don't exists
             );
             if (!ComponentModelClass) {
-              if (process.env.NODE_ENV !== "production") {
-                var subType = resultItem.keyInfo.subType;
-                var seriesImportName = BUILTIN_CHARTS_MAP[subType];
-                if (!componetsMissingLogPrinted[subType]) {
-                  componetsMissingLogPrinted[subType] = true;
-                  if (seriesImportName) {
-                    error("Series " + subType + " is used but not imported.\nimport { " + seriesImportName + " } from 'echarts/charts';\necharts.use([" + seriesImportName + "]);");
-                  } else {
-                    error("Unknown series " + subType);
-                  }
-                }
-              }
               return;
             }
             if (mainType === "tooltip") {
               if (tooltipExists) {
-                if (process.env.NODE_ENV !== "production") {
-                  if (!tooltipWarningLogged) {
-                    warn("Currently only one tooltip component is allowed.");
-                    tooltipWarningLogged = true;
-                  }
-                }
                 return;
               }
               tooltipExists = true;
@@ -17040,8 +16750,8 @@ var GlobalModel = (
         var ctxForAll_1 = cb;
         var cbForAll_1 = mainType;
         componentsMap.each(function(cmpts2, componentType) {
-          for (var i3 = 0; cmpts2 && i3 < cmpts2.length; i3++) {
-            var cmpt2 = cmpts2[i3];
+          for (var i22 = 0; cmpts2 && i22 < cmpts2.length; i22++) {
+            var cmpt2 = cmpts2[i22];
             cmpt2 && cbForAll_1.call(ctxForAll_1, componentType, cmpt2, cmpt2.componentIndex);
           }
         });
@@ -17142,11 +16852,6 @@ var GlobalModel = (
         ecModel._seriesIndicesMap = createHashMap(seriesIndices);
       }, "reCreateSeriesIndices");
       assertSeriesInitialized = /* @__PURE__ */ __name(function(ecModel) {
-        if (process.env.NODE_ENV !== "production") {
-          if (!ecModel._seriesIndices) {
-            throw new Error("Option should contains series.");
-          }
-        }
       }, "assertSeriesInitialized");
       initBase = /* @__PURE__ */ __name(function(ecModel, baseOption) {
         ecModel.option = {};
@@ -17223,9 +16928,6 @@ __name(filterBySubType, "filterBySubType");
 function normalizeSetOptionInput(opts) {
   var replaceMergeMainTypeMap = createHashMap();
   opts && each$f(normalizeToArray(opts.replaceMerge), function(mainType) {
-    if (process.env.NODE_ENV !== "production") {
-      assert(ComponentModel.hasClass(mainType), '"' + mainType + '" is not valid component main type in "replaceMerge"');
-    }
     replaceMergeMainTypeMap.set(mainType, true);
   });
   return {
@@ -17309,7 +17011,7 @@ var OptionManager = (
       this._currentMediaIndices = [];
       this._api = api;
     }
-    __name(OptionManager2, "OptionManager");
+    __name(OptionManager2, "OptionManager2");
     OptionManager2.prototype.setOption = function(rawOption, optionPreprocessorFuncs2, opt) {
       if (rawOption) {
         each$f(normalizeToArray(rawOption.series), function(series) {
@@ -17412,11 +17114,6 @@ function parseRawOption(rawOption, optionPreprocessorFuncs2, isNew) {
   if (hasMedia) {
     if (isArray$1(mediaOnRoot)) {
       each$f(mediaOnRoot, function(singleMedia) {
-        if (process.env.NODE_ENV !== "production") {
-          if (singleMedia && !singleMedia.option && isObject$3(singleMedia.query) && isObject$3(singleMedia.query.option)) {
-            error("Illegal media option. Must be like { media: [ { query: {}, option: {} } ] }");
-          }
-        }
         if (singleMedia && singleMedia.option) {
           if (singleMedia.query) {
             mediaList.push(singleMedia);
@@ -17425,10 +17122,6 @@ function parseRawOption(rawOption, optionPreprocessorFuncs2, isNew) {
           }
         }
       });
-    } else {
-      if (process.env.NODE_ENV !== "production") {
-        error("Illegal media option. Must be an array. Like { media: [ {...}, {...} ] }");
-      }
     }
   }
   doPreprocess(baseOption);
@@ -17501,9 +17194,6 @@ function compatEC2ItemStyle(opt) {
     var normalItemStyleOpt = itemStyleOpt.normal;
     var emphasisItemStyleOpt = itemStyleOpt.emphasis;
     if (normalItemStyleOpt && normalItemStyleOpt[styleName]) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateReplaceLog("itemStyle.normal." + styleName, styleName);
-      }
       opt[styleName] = opt[styleName] || {};
       if (!opt[styleName].normal) {
         opt[styleName].normal = normalItemStyleOpt[styleName];
@@ -17513,9 +17203,6 @@ function compatEC2ItemStyle(opt) {
       normalItemStyleOpt[styleName] = null;
     }
     if (emphasisItemStyleOpt && emphasisItemStyleOpt[styleName]) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateReplaceLog("itemStyle.emphasis." + styleName, "emphasis." + styleName);
-      }
       opt[styleName] = opt[styleName] || {};
       if (!opt[styleName].emphasis) {
         opt[styleName].emphasis = emphasisItemStyleOpt[styleName];
@@ -17532,9 +17219,6 @@ function convertNormalEmphasis(opt, optType, useExtend) {
     var normalOpt = opt[optType].normal;
     var emphasisOpt = opt[optType].emphasis;
     if (normalOpt) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateLog("'normal' hierarchy in " + optType + " has been removed since 4.0. All style properties are configured in " + optType + " directly now.");
-      }
       if (useExtend) {
         opt[optType].normal = opt[optType].emphasis = null;
         defaults(opt[optType], normalOpt);
@@ -17543,9 +17227,6 @@ function convertNormalEmphasis(opt, optType, useExtend) {
       }
     }
     if (emphasisOpt) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateLog(optType + ".emphasis has been changed to emphasis." + optType + " since 4.0");
-      }
       opt.emphasis = opt.emphasis || {};
       opt.emphasis[optType] = emphasisOpt;
       if (emphasisOpt.focus) {
@@ -17572,9 +17253,6 @@ function compatTextStyle(opt, propName) {
   var labelOptSingle = isObject$2(opt) && opt[propName];
   var textStyle = isObject$2(labelOptSingle) && labelOptSingle.textStyle;
   if (textStyle) {
-    if (process.env.NODE_ENV !== "production") {
-      deprecateLog("textStyle hierarchy in " + propName + " has been removed since 4.0. All textStyle properties are configured in " + propName + " directly now.");
-    }
     for (var i2 = 0, len2 = TEXT_STYLE_OPTIONS.length; i2 < len2; i2++) {
       var textPropName = TEXT_STYLE_OPTIONS[i2];
       if (textStyle.hasOwnProperty(textPropName)) {
@@ -17709,23 +17387,10 @@ function globalCompatStyle(option, isTheme) {
     if (radarOpt.name && radarOpt.axisName == null) {
       radarOpt.axisName = radarOpt.name;
       delete radarOpt.name;
-      if (process.env.NODE_ENV !== "production") {
-        deprecateLog("name property in radar component has been changed to axisName");
-      }
     }
     if (radarOpt.nameGap != null && radarOpt.axisNameGap == null) {
       radarOpt.axisNameGap = radarOpt.nameGap;
       delete radarOpt.nameGap;
-      if (process.env.NODE_ENV !== "production") {
-        deprecateLog("nameGap property in radar component has been changed to axisNameGap");
-      }
-    }
-    if (process.env.NODE_ENV !== "production") {
-      each$d(radarOpt.indicator, function(indicatorOpt) {
-        if (indicatorOpt.text) {
-          deprecateReplaceLog("text", "name", "radar.indicator");
-        }
-      });
     }
   });
   each$d(toArr(option.geo), function(geoOpt) {
@@ -17807,9 +17472,6 @@ function compatBarItemStyle(option) {
       var newName = BAR_ITEM_STYLE_MAP[i2][0];
       if (itemStyle[oldName] != null) {
         itemStyle[newName] = itemStyle[oldName];
-        if (process.env.NODE_ENV !== "production") {
-          deprecateReplaceLog(oldName, newName);
-        }
       }
     }
   }
@@ -17820,9 +17482,6 @@ function compatPieLabel(option) {
     return;
   }
   if (option.alignTo === "edge" && option.margin != null && option.edgeDistance == null) {
-    if (process.env.NODE_ENV !== "production") {
-      deprecateReplaceLog("label.margin", "label.edgeDistance", "pie");
-    }
     option.edgeDistance = option.margin;
   }
 }
@@ -17833,9 +17492,6 @@ function compatSunburstState(option) {
   }
   if (option.downplay && !option.blur) {
     option.blur = option.downplay;
-    if (process.env.NODE_ENV !== "production") {
-      deprecateReplaceLog("downplay", "blur", "sunburst");
-    }
   }
 }
 __name(compatSunburstState, "compatSunburstState");
@@ -17846,9 +17502,6 @@ function compatGraphFocus(option) {
   if (option.focusNodeAdjacency != null) {
     option.emphasis = option.emphasis || {};
     if (option.emphasis.focus == null) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateReplaceLog("focusNodeAdjacency", "emphasis: { focus: 'adjacency'}", "graph/sankey");
-      }
       option.emphasis.focus = "adjacency";
     }
   }
@@ -17874,16 +17527,10 @@ function globalBackwardCompat(option, isTheme) {
     if (seriesType2 === "line") {
       if (seriesOpt.clipOverflow != null) {
         seriesOpt.clip = seriesOpt.clipOverflow;
-        if (process.env.NODE_ENV !== "production") {
-          deprecateReplaceLog("clipOverflow", "clip", "line");
-        }
       }
     } else if (seriesType2 === "pie" || seriesType2 === "gauge") {
       if (seriesOpt.clockWise != null) {
         seriesOpt.clockwise = seriesOpt.clockWise;
-        if (process.env.NODE_ENV !== "production") {
-          deprecateReplaceLog("clockWise", "clockwise");
-        }
       }
       compatPieLabel(seriesOpt.label);
       var data = seriesOpt.data;
@@ -17895,9 +17542,6 @@ function globalBackwardCompat(option, isTheme) {
       if (seriesOpt.hoverOffset != null) {
         seriesOpt.emphasis = seriesOpt.emphasis || {};
         if (seriesOpt.emphasis.scaleSize = null) {
-          if (process.env.NODE_ENV !== "production") {
-            deprecateReplaceLog("hoverOffset", "emphasis.scaleSize");
-          }
           seriesOpt.emphasis.scaleSize = seriesOpt.hoverOffset;
         }
       }
@@ -17923,9 +17567,6 @@ function globalBackwardCompat(option, isTheme) {
         seriesOpt.emphasis = seriesOpt.emphasis || {};
         if (!seriesOpt.emphasis.focus) {
           seriesOpt.emphasis.focus = highlightPolicy;
-          if (process.env.NODE_ENV !== "production") {
-            deprecateReplaceLog("highlightPolicy", "emphasis.focus", "sunburst");
-          }
         }
       }
       compatSunburstState(seriesOpt);
@@ -17934,24 +17575,15 @@ function globalBackwardCompat(option, isTheme) {
       compatGraphFocus(seriesOpt);
     } else if (seriesType2 === "map") {
       if (seriesOpt.mapType && !seriesOpt.map) {
-        if (process.env.NODE_ENV !== "production") {
-          deprecateReplaceLog("mapType", "map", "map");
-        }
         seriesOpt.map = seriesOpt.mapType;
       }
       if (seriesOpt.mapLocation) {
-        if (process.env.NODE_ENV !== "production") {
-          deprecateLog("`mapLocation` is not used anymore.");
-        }
         defaults(seriesOpt, seriesOpt.mapLocation);
       }
     }
     if (seriesOpt.hoverAnimation != null) {
       seriesOpt.emphasis = seriesOpt.emphasis || {};
       if (seriesOpt.emphasis && seriesOpt.emphasis.scale == null) {
-        if (process.env.NODE_ENV !== "production") {
-          deprecateReplaceLog("hoverAnimation", "emphasis.scale");
-        }
         seriesOpt.emphasis.scale = seriesOpt.hoverAnimation;
       }
     }
@@ -18065,7 +17697,7 @@ var SourceImpl = (
         }
       }
     }
-    __name(SourceImpl2, "SourceImpl");
+    __name(SourceImpl2, "SourceImpl2");
     return SourceImpl2;
   }()
 );
@@ -18184,11 +17816,7 @@ function determineSourceDimensions(data, sourceFormat, seriesLayoutBy, sourceHea
   } else if (sourceFormat === SOURCE_FORMAT_ORIGINAL) {
     var value0 = getDataItemValue(data[0]);
     dimensionsDetectedCount = isArray$1(value0) && value0.length || 1;
-  } else if (sourceFormat === SOURCE_FORMAT_TYPED_ARRAY) {
-    if (process.env.NODE_ENV !== "production") {
-      assert(!!dimensionsDefine, "dimensions must be given if data is TypedArray.");
-    }
-  }
+  } else ;
   return {
     startIndex,
     dimensionsDefine: normalizeDimensionsOption(dimensionsDefine),
@@ -18268,18 +17896,13 @@ var DefaultDataProvider = (
       this._source = source;
       var data = this._data = source.data;
       if (source.sourceFormat === SOURCE_FORMAT_TYPED_ARRAY) {
-        if (process.env.NODE_ENV !== "production") {
-          if (dimSize == null) {
-            throw new Error("Typed array data must specify dimension size");
-          }
-        }
         this._offset = 0;
         this._dimSize = dimSize;
         this._data = data;
       }
       mountMethods(this, data, source);
     }
-    __name(DefaultDataProvider2, "DefaultDataProvider");
+    __name(DefaultDataProvider2, "DefaultDataProvider2");
     DefaultDataProvider2.prototype.getSource = function() {
       return this._source;
     };
@@ -18306,9 +17929,6 @@ var DefaultDataProvider = (
         var startIndex = source.startIndex;
         var dimsDef = source.dimensionsDefine;
         var methods = providerMethods[getMethodMapKey(sourceFormat, seriesLayoutBy)];
-        if (process.env.NODE_ENV !== "production") {
-          assert(methods, "Invalide sourceFormat: " + sourceFormat);
-        }
         extend(provider, methods);
         if (sourceFormat === SOURCE_FORMAT_TYPED_ARRAY) {
           provider.getItem = getItemForTypedArray;
@@ -18382,9 +18002,6 @@ var DefaultDataProvider = (
         persistent: false,
         pure: true,
         appendData: /* @__PURE__ */ __name(function(newData) {
-          if (process.env.NODE_ENV !== "production") {
-            assert(isTypedArray(newData), "Added data must be TypedArray if data in initialization is TypedArray");
-          }
           this._data = newData;
         }, "appendData"),
         // Clean self if data is already used.
@@ -18421,11 +18038,6 @@ var rawSourceItemGetterMap = (_a = {}, _a[SOURCE_FORMAT_ARRAY_ROWS + "_" + SERIE
   var item = out2 || [];
   for (var i2 = 0; i2 < dimsDef.length; i2++) {
     var dimName = dimsDef[i2].name;
-    if (process.env.NODE_ENV !== "production") {
-      if (dimName == null) {
-        throw new Error();
-      }
-    }
     var col = rawData[dimName];
     item[i2] = col ? col[idx] : null;
   }
@@ -18433,9 +18045,6 @@ var rawSourceItemGetterMap = (_a = {}, _a[SOURCE_FORMAT_ARRAY_ROWS + "_" + SERIE
 }, _a[SOURCE_FORMAT_ORIGINAL] = getItemSimply, _a);
 function getRawSourceItemGetter(sourceFormat, seriesLayoutBy) {
   var method = rawSourceItemGetterMap[getMethodMapKey(sourceFormat, seriesLayoutBy)];
-  if (process.env.NODE_ENV !== "production") {
-    assert(method, 'Do not support get item on "' + sourceFormat + '", "' + seriesLayoutBy + '".');
-  }
   return method;
 }
 __name(getRawSourceItemGetter, "getRawSourceItemGetter");
@@ -18449,19 +18058,11 @@ var rawSourceDataCounterMap = (_b = {}, _b[SOURCE_FORMAT_ARRAY_ROWS + "_" + SERI
   return row ? Math.max(0, row.length - startIndex) : 0;
 }, _b[SOURCE_FORMAT_OBJECT_ROWS] = countSimply, _b[SOURCE_FORMAT_KEYED_COLUMNS] = function(rawData, startIndex, dimsDef) {
   var dimName = dimsDef[0].name;
-  if (process.env.NODE_ENV !== "production") {
-    if (dimName == null) {
-      throw new Error();
-    }
-  }
   var col = rawData[dimName];
   return col ? col.length : 0;
 }, _b[SOURCE_FORMAT_ORIGINAL] = countSimply, _b);
 function getRawSourceDataCounter(sourceFormat, seriesLayoutBy) {
   var method = rawSourceDataCounterMap[getMethodMapKey(sourceFormat, seriesLayoutBy)];
-  if (process.env.NODE_ENV !== "production") {
-    assert(method, 'Do not support count on "' + sourceFormat + '", "' + seriesLayoutBy + '".');
-  }
   return method;
 }
 __name(getRawSourceDataCounter, "getRawSourceDataCounter");
@@ -18476,9 +18077,6 @@ var rawSourceValueGetterMap = (_c = {}, _c[SOURCE_FORMAT_ARRAY_ROWS] = getRawVal
 }, _c[SOURCE_FORMAT_TYPED_ARRAY] = getRawValueSimply, _c);
 function getRawSourceValueGetter(sourceFormat) {
   var method = rawSourceValueGetterMap[sourceFormat];
-  if (process.env.NODE_ENV !== "production") {
-    assert(method, 'Do not support get value on "' + sourceFormat + '".');
-  }
   return method;
 }
 __name(getRawSourceValueGetter, "getRawSourceValueGetter");
@@ -18515,7 +18113,7 @@ var DataFormatMixin = (
   function() {
     function DataFormatMixin2() {
     }
-    __name(DataFormatMixin2, "DataFormatMixin");
+    __name(DataFormatMixin2, "DataFormatMixin2");
     DataFormatMixin2.prototype.getDataParams = function(dataIndex, dataType) {
       var data = this.getData(dataType);
       var rawValue = this.getRawValue(dataIndex, dataType);
@@ -18574,11 +18172,6 @@ var DataFormatMixin = (
           var dimLoose = dimStr;
           if (dimLoose.charAt(0) === "[" && dimLoose.charAt(len2 - 1) === "]") {
             dimLoose = +dimLoose.slice(1, len2 - 1);
-            if (process.env.NODE_ENV !== "production") {
-              if (isNaN(dimLoose)) {
-                error("Invalide label formatter: @" + dimStr + ", only support @[0], @[1], @[2], ...");
-              }
-            }
           }
           var val = retrieveRawValue(data, dataIndex, dimLoose);
           if (extendParams && isArray$1(extendParams.interpolatedValue)) {
@@ -18606,10 +18199,6 @@ function normalizeTooltipFormatResult(result) {
   if (isObject$3(result)) {
     if (result.type) {
       markupFragment = result;
-    } else {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("The return type of `formatTooltip` is not supported: " + makePrintable(result));
-      }
     }
   } else {
     markupText = result;
@@ -18636,7 +18225,7 @@ var Task = (
       this._onDirty = define.onDirty;
       this._dirty = true;
     }
-    __name(Task2, "Task");
+    __name(Task2, "Task2");
     Task2.prototype.perform = function(performArgs) {
       var upTask = this._upstream;
       var skip = performArgs && performArgs.skip;
@@ -18672,14 +18261,8 @@ var Task = (
       this._modDataCount = modDataCount;
       var step = performArgs && performArgs.step;
       if (upTask) {
-        if (process.env.NODE_ENV !== "production") {
-          assert(upTask._outputDueEnd != null);
-        }
         this._dueEnd = upTask._outputDueEnd;
       } else {
-        if (process.env.NODE_ENV !== "production") {
-          assert(!this._progress || this._count);
-        }
         this._dueEnd = this._count ? this._count(this.context) : Infinity;
       }
       if (this._progress) {
@@ -18697,9 +18280,6 @@ var Task = (
         }
         this._dueIndex = end2;
         var outputDueEnd = this._settedOutputEnd != null ? this._settedOutputEnd : end2;
-        if (process.env.NODE_ENV !== "production") {
-          assert(outputDueEnd >= this._outputDueEnd);
-        }
         this._outputDueEnd = outputDueEnd;
       } else {
         this._dueIndex = this._outputDueEnd = this._settedOutputEnd != null ? this._settedOutputEnd : this._dueEnd;
@@ -18745,9 +18325,6 @@ var Task = (
       return this._progress && this._dueIndex < this._dueEnd;
     };
     Task2.prototype.pipe = function(downTask) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(downTask && !downTask._disposed && downTask !== this);
-      }
       if (this._downstream !== downTask || this._dirty) {
         this._downstream = downTask;
         downTask._upstream = this;
@@ -18850,15 +18427,12 @@ var FilterOrderComparator = (
     function FilterOrderComparator2(op, rval) {
       if (!isNumber(rval)) {
         var errMsg = "";
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = 'rvalue of "<", ">", "<=", ">=" can only be number in filter.';
-        }
         throwError(errMsg);
       }
       this._opFn = ORDER_COMPARISON_OP_MAP[op];
       this._rvalFloat = numericToNumber(rval);
     }
-    __name(FilterOrderComparator2, "FilterOrderComparator");
+    __name(FilterOrderComparator2, "FilterOrderComparator2");
     FilterOrderComparator2.prototype.evaluate = function(lval) {
       return isNumber(lval) ? this._opFn(lval, this._rvalFloat) : this._opFn(numericToNumber(lval), this._rvalFloat);
     };
@@ -18876,7 +18450,7 @@ var SortOrderComparator = (
       }
       this._incomparable = incomparable === "min" ? -Infinity : Infinity;
     }
-    __name(SortOrderComparator2, "SortOrderComparator");
+    __name(SortOrderComparator2, "SortOrderComparator2");
     SortOrderComparator2.prototype.evaluate = function(lval, rval) {
       var lvalFloat = isNumber(lval) ? lval : numericToNumber(lval);
       var rvalFloat = isNumber(rval) ? rval : numericToNumber(rval);
@@ -18912,7 +18486,7 @@ var FilterEqualityComparator = (
       this._rvalTypeof = typeof rval;
       this._rvalFloat = numericToNumber(rval);
     }
-    __name(FilterEqualityComparator2, "FilterEqualityComparator");
+    __name(FilterEqualityComparator2, "FilterEqualityComparator2");
     FilterEqualityComparator2.prototype.evaluate = function(lval) {
       var eqResult = lval === this._rval;
       if (!eqResult) {
@@ -18935,7 +18509,7 @@ var ExternalSource = (
   function() {
     function ExternalSource2() {
     }
-    __name(ExternalSource2, "ExternalSource");
+    __name(ExternalSource2, "ExternalSource2");
     ExternalSource2.prototype.getRawData = function() {
       throw new Error("not supported");
     };
@@ -18973,9 +18547,6 @@ function createExternalSource(internalSource, externalTransform) {
   var sourceHeaderCount = internalSource.startIndex;
   var errMsg = "";
   if (internalSource.seriesLayoutBy !== SERIES_LAYOUT_BY_COLUMN) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = '`seriesLayoutBy` of upstream dataset can only be "column" in data transform.';
-    }
     throwError(errMsg);
   }
   var dimensions = [];
@@ -18993,9 +18564,6 @@ function createExternalSource(internalSource, externalTransform) {
       if (name != null) {
         var errMsg_1 = "";
         if (hasOwn(dimsByName, name)) {
-          if (process.env.NODE_ENV !== "production") {
-            errMsg_1 = 'dimension name "' + name + '" duplicated.';
-          }
           throwError(errMsg_1);
         }
         dimsByName[name] = dimDefExt;
@@ -19041,9 +18609,6 @@ function getRawData(upstream) {
   var sourceFormat = upstream.sourceFormat;
   if (!isSupportedSourceFormat(sourceFormat)) {
     var errMsg = "";
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "`getRawData` is not supported in source format " + sourceFormat;
-    }
     throwError(errMsg);
   }
   return upstream.data;
@@ -19054,9 +18619,6 @@ function cloneRawData(upstream) {
   var data = upstream.data;
   if (!isSupportedSourceFormat(sourceFormat)) {
     var errMsg = "";
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "`cloneRawData` is not supported in source format " + sourceFormat;
-    }
     throwError(errMsg);
   }
   if (sourceFormat === SOURCE_FORMAT_ARRAY_ROWS) {
@@ -19095,16 +18657,10 @@ function registerExternalTransform(externalTransform) {
   var type = externalTransform.type;
   var errMsg = "";
   if (!type) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "Must have a `type` when `registerTransform`.";
-    }
     throwError(errMsg);
   }
   var typeParsed = type.split(":");
   if (typeParsed.length !== 2) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = 'Name must include namespace like "ns:regression".';
-    }
     throwError(errMsg);
   }
   var isBuiltIn = false;
@@ -19121,14 +18677,11 @@ function applyDataTransform(rawTransOption, sourceList, infoForPrint) {
   var pipeLen = pipedTransOption.length;
   var errMsg = "";
   if (!pipeLen) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "If `transform` declared, it should at least contain one transform.";
-    }
     throwError(errMsg);
   }
   for (var i2 = 0, len2 = pipeLen; i2 < len2; i2++) {
     var transOption = pipedTransOption[i2];
-    sourceList = applySingleDataTransform(transOption, sourceList, infoForPrint, pipeLen === 1 ? null : i2);
+    sourceList = applySingleDataTransform(transOption, sourceList);
     if (i2 !== len2 - 1) {
       sourceList.length = Math.max(sourceList.length, 1);
     }
@@ -19139,23 +18692,14 @@ __name(applyDataTransform, "applyDataTransform");
 function applySingleDataTransform(transOption, upSourceList, infoForPrint, pipeIndex) {
   var errMsg = "";
   if (!upSourceList.length) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "Must have at least one upstream dataset.";
-    }
     throwError(errMsg);
   }
   if (!isObject$3(transOption)) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = "transform declaration must be an object rather than " + typeof transOption + ".";
-    }
     throwError(errMsg);
   }
   var transType = transOption.type;
   var externalTransform = externalTransformMap.get(transType);
   if (!externalTransform) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = 'Can not find transform on type "' + transType + '".';
-    }
     throwError(errMsg);
   }
   var extUpSourceList = map$1(upSourceList, function(upSource) {
@@ -19166,34 +18710,16 @@ function applySingleDataTransform(transOption, upSourceList, infoForPrint, pipeI
     upstreamList: extUpSourceList,
     config: clone$4(transOption.config)
   }));
-  if (process.env.NODE_ENV !== "production") {
-    if (transOption.print) {
-      var printStrArr = map$1(resultList, function(extSource) {
-        var pipeIndexStr = pipeIndex != null ? " === pipe index: " + pipeIndex : "";
-        return ["=== dataset index: " + infoForPrint.datasetIndex + pipeIndexStr + " ===", "- transform result data:", makePrintable(extSource.data), "- transform result dimensions:", makePrintable(extSource.dimensions)].join("\n");
-      }).join("\n");
-      log(printStrArr);
-    }
-  }
   return map$1(resultList, function(result, resultIndex) {
     var errMsg2 = "";
     if (!isObject$3(result)) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg2 = "A transform should not return some empty results.";
-      }
       throwError(errMsg2);
     }
     if (!result.data) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg2 = "Transform result data should be not be null or undefined";
-      }
       throwError(errMsg2);
     }
     var sourceFormat = detectSourceFormat(result.data);
     if (!isSupportedSourceFormat(sourceFormat)) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg2 = "Transform result data should be array rows or object rows.";
-      }
       throwError(errMsg2);
     }
     var resultMetaRawOption;
@@ -19278,11 +18804,8 @@ var DataStore = (
       this._rawCount = 0;
       this._calcDimNameToIdx = createHashMap();
     }
-    __name(DataStore2, "DataStore");
+    __name(DataStore2, "DataStore2");
     DataStore2.prototype.initData = function(provider, inputDimensions, dimValueGetter) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(isFunction(provider.getItem) && isFunction(provider.count), "Invalid data provider.");
-      }
       this._provider = provider;
       this._chunks = [];
       this._indices = null;
@@ -19291,13 +18814,8 @@ var DataStore = (
       var defaultGetter = this.defaultDimValueGetter = defaultDimValueGetters[source.sourceFormat];
       this._dimValueGetter = dimValueGetter || defaultGetter;
       this._rawExtent = [];
-      var willRetrieveDataByName = shouldRetrieveDataByName(source);
+      shouldRetrieveDataByName(source);
       this._dimensions = map$1(inputDimensions, function(dim) {
-        if (process.env.NODE_ENV !== "production") {
-          if (willRetrieveDataByName) {
-            assert(dim.property != null);
-          }
-        }
         return {
           // Only pick these two props. Not leak other properties like orderMeta.
           type: dim.type,
@@ -19362,9 +18880,6 @@ var DataStore = (
       return item && item.property;
     };
     DataStore2.prototype.appendData = function(data) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(!this._indices, "appendData can only be called on raw data.");
-      }
       var provider = this._provider;
       var start2 = this.count();
       provider.appendData(data);
@@ -20061,7 +19576,7 @@ var SourceManager = (
       this._dirty = true;
       this._sourceHost = sourceHost;
     }
-    __name(SourceManager2, "SourceManager");
+    __name(SourceManager2, "SourceManager2");
     SourceManager2.prototype.dirty = function() {
       this._setLocalSource([], []);
       this._storeList = [];
@@ -20131,24 +19646,15 @@ var SourceManager = (
           upstreamSignList = [];
         }
       }
-      if (process.env.NODE_ENV !== "production") {
-        assert(resultSourceList && upstreamSignList);
-      }
       this._setLocalSource(resultSourceList, upstreamSignList);
     };
     SourceManager2.prototype._applyTransform = function(upMgrList) {
       var datasetModel = this._sourceHost;
       var transformOption = datasetModel.get("transform", true);
       var fromTransformResult = datasetModel.get("fromTransformResult", true);
-      if (process.env.NODE_ENV !== "production") {
-        assert(fromTransformResult != null || transformOption != null);
-      }
       if (fromTransformResult != null) {
         var errMsg = "";
         if (upMgrList.length !== 1) {
-          if (process.env.NODE_ENV !== "production") {
-            errMsg = "When using `fromTransformResult`, there should be only one upstream dataset";
-          }
           doThrow(errMsg);
         }
       }
@@ -20160,9 +19666,6 @@ var SourceManager = (
         var upSource = upMgr.getSource(fromTransformResult || 0);
         var errMsg2 = "";
         if (fromTransformResult != null && !upSource) {
-          if (process.env.NODE_ENV !== "production") {
-            errMsg2 = "Can not retrieve result by `fromTransformResult`: " + fromTransformResult;
-          }
           doThrow(errMsg2);
         }
         upSourceList.push(upSource);
@@ -20206,9 +19709,6 @@ var SourceManager = (
       return source;
     };
     SourceManager2.prototype.getSharedDataStore = function(seriesDimRequest) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(isSeries(this._sourceHost), "Can only call getDataStore on series source manager.");
-      }
       var schema = seriesDimRequest.makeStoreSchema();
       return this._innerGetDataStore(schema.dimensions, seriesDimRequest.source, schema.hash);
     };
@@ -20503,7 +20003,7 @@ var TooltipMarkupStyleCreator = (
       this.richTextStyles = {};
       this._nextStyleNameId = getRandomIdBase();
     }
-    __name(TooltipMarkupStyleCreator2, "TooltipMarkupStyleCreator");
+    __name(TooltipMarkupStyleCreator2, "TooltipMarkupStyleCreator2");
     TooltipMarkupStyleCreator2.prototype._generateStyleName = function() {
       return "__EC_aUTo_" + this._nextStyleNameId++;
     };
@@ -20518,9 +20018,6 @@ var TooltipMarkupStyleCreator = (
       if (isString(marker)) {
         return marker;
       } else {
-        if (process.env.NODE_ENV !== "production") {
-          assert(markerId);
-        }
         this.richTextStyles[markerId] = marker.style;
         return marker.content;
       }
@@ -20647,7 +20144,7 @@ var SeriesModel = (
       _this._selectedDataIndicesMap = {};
       return _this;
     }
-    __name(SeriesModel2, "SeriesModel");
+    __name(SeriesModel2, "SeriesModel2");
     SeriesModel2.prototype.init = function(option, parentModel, ecModel) {
       this.seriesIndex = this.componentIndex;
       this.dataTask = createTask({
@@ -20663,9 +20160,6 @@ var SeriesModel = (
       var data = this.getInitialData(option, ecModel);
       wrapData(data, this);
       this.dataTask.context.data = data;
-      if (process.env.NODE_ENV !== "production") {
-        assert(data, "getInitialData returned invalid data.");
-      }
       inner$k(this).dataBeforeProcessed = data;
       autoSeriesName(this);
       this._initSelectedMapFromData(data);
@@ -21066,20 +20560,14 @@ var ChartView = (
         view: this
       };
     }
-    __name(ChartView2, "ChartView");
+    __name(ChartView2, "ChartView2");
     ChartView2.prototype.init = function(ecModel, api) {
     };
     ChartView2.prototype.render = function(seriesModel, ecModel, api, payload) {
-      if (process.env.NODE_ENV !== "production") {
-        throw new Error("render method must been implemented");
-      }
     };
     ChartView2.prototype.highlight = function(seriesModel, ecModel, api, payload) {
       var data = seriesModel.getData(payload && payload.dataType);
       if (!data) {
-        if (process.env.NODE_ENV !== "production") {
-          error("Unknown dataType " + payload.dataType);
-        }
         return;
       }
       toggleHighlight(data, payload, "emphasis");
@@ -21087,9 +20575,6 @@ var ChartView = (
     ChartView2.prototype.downplay = function(seriesModel, ecModel, api, payload) {
       var data = seriesModel.getData(payload && payload.dataType);
       if (!data) {
-        if (process.env.NODE_ENV !== "production") {
-          error("Unknown dataType " + payload.dataType);
-        }
         return;
       }
       toggleHighlight(data, payload, "normal");
@@ -21141,7 +20626,7 @@ function toggleHighlight(data, payload, state) {
   }
 }
 __name(toggleHighlight, "toggleHighlight");
-enableClassExtend(ChartView, ["dispose"]);
+enableClassExtend(ChartView);
 enableClassManagement(ChartView);
 function renderTaskPlan(context) {
   return renderPlanner(context.model);
@@ -21524,7 +21009,7 @@ var Scheduler = (
       visualHandlers = this._visualHandlers = visualHandlers.slice();
       this._allHandlers = dataProcessorHandlers.concat(visualHandlers);
     }
-    __name(Scheduler2, "Scheduler");
+    __name(Scheduler2, "Scheduler2");
     Scheduler2.prototype.restoreData = function(ecModel, payload) {
       ecModel.restoreData(payload);
       this._stageTaskMap.each(function(taskRecord) {
@@ -21590,9 +21075,6 @@ var Scheduler = (
       each$f(this._allHandlers, function(handler) {
         var record = stageTaskMap.get(handler.uid) || stageTaskMap.set(handler.uid, {});
         var errMsg = "";
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = '"reset" and "overallReset" must not be both specified.';
-        }
         assert(!(handler.reset && handler.overallReset), errMsg);
         handler.reset && this._createSeriesStageTask(handler, record, ecModel, api);
         handler.overallReset && this._createOverallStageTask(handler, record, ecModel, api);
@@ -21738,9 +21220,6 @@ var Scheduler = (
       var overallProgress = true;
       var shouldOverallTaskDirty = false;
       var errMsg = "";
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = '"createOnAllSeries" is not supported for "overallReset", because it will block all streams.';
-      }
       assert(!stageHandler.createOnAllSeries, errMsg);
       if (seriesType2) {
         ecModel.eachRawSeriesByType(seriesType2, createStub);
@@ -22225,10 +21704,6 @@ function getItemVisualFromData(data, dataIndex, key) {
     case "symbolSize":
     case "liftZ":
       return data.getItemVisual(dataIndex, key);
-    default:
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Unknown visual type " + key);
-      }
   }
 }
 __name(getItemVisualFromData, "getItemVisualFromData");
@@ -22243,10 +21718,6 @@ function getVisualFromData(data, key) {
     case "symbolSize":
     case "liftZ":
       return data.getVisual(key);
-    default:
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Unknown visual type " + key);
-      }
   }
 }
 __name(getVisualFromData, "getVisualFromData");
@@ -22265,10 +21736,6 @@ function setItemVisualFromData(data, dataIndex, key, value) {
     case "liftZ":
       data.setItemVisual(dataIndex, key, value);
       break;
-    default:
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Unknown visual type " + key);
-      }
   }
 }
 __name(setItemVisualFromData, "setItemVisualFromData");
@@ -22288,9 +21755,6 @@ function createLegacyDataSelectAction(seriesType2, ecRegisterAction) {
   each$f([[seriesType2 + "ToggleSelect", "toggleSelect"], [seriesType2 + "Select", "select"], [seriesType2 + "UnSelect", "unselect"]], function(eventsMap) {
     ecRegisterAction(eventsMap[0], function(payload, ecModel, api) {
       payload = extend({}, payload);
-      if (process.env.NODE_ENV !== "production") {
-        deprecateReplaceLog(payload.type, eventsMap[1]);
-      }
       api.dispatchAction(extend(payload, {
         type: eventsMap[1],
         seriesIndex: getSeriesIndices(ecModel, payload)
@@ -22302,9 +21766,6 @@ __name(createLegacyDataSelectAction, "createLegacyDataSelectAction");
 function handleSeriesLegacySelectEvents(type, eventPostfix, ecIns, ecModel, payload) {
   var legacyEventName = type + eventPostfix;
   if (!ecIns.isSilent(legacyEventName)) {
-    if (process.env.NODE_ENV !== "production") {
-      deprecateLog("event " + legacyEventName + " is deprecated.");
-    }
     ecModel.eachComponent({
       mainType: "series",
       subType: "pie"
@@ -23374,26 +22835,15 @@ function createOrUpdatePatternFromDecal(decalObject, api) {
     pattern2.svgHeight = pSize.height;
     function getPatternSize() {
       var width = 1;
-      for (var i3 = 0, xlen = lineBlockLengthsX.length; i3 < xlen; ++i3) {
-        width = getLeastCommonMultiple(width, lineBlockLengthsX[i3]);
+      for (var i22 = 0, xlen = lineBlockLengthsX.length; i22 < xlen; ++i22) {
+        width = getLeastCommonMultiple(width, lineBlockLengthsX[i22]);
       }
       var symbolRepeats = 1;
-      for (var i3 = 0, xlen = symbolArray.length; i3 < xlen; ++i3) {
-        symbolRepeats = getLeastCommonMultiple(symbolRepeats, symbolArray[i3].length);
+      for (var i22 = 0, xlen = symbolArray.length; i22 < xlen; ++i22) {
+        symbolRepeats = getLeastCommonMultiple(symbolRepeats, symbolArray[i22].length);
       }
       width *= symbolRepeats;
       var height = lineBlockLengthY * lineBlockLengthsX.length * symbolArray.length;
-      if (process.env.NODE_ENV !== "production") {
-        var warn2 = /* @__PURE__ */ __name(function(attrName) {
-          console.warn("Calculated decal size is greater than " + attrName + " due to decal option settings so " + attrName + " is used for the decal size. Please consider changing the decal option to make a smaller decal or set " + attrName + " to be larger to avoid incontinuity.");
-        }, "warn");
-        if (width > decalOpt.maxTileWidth) {
-          warn2("maxTileWidth");
-        }
-        if (height > decalOpt.maxTileHeight) {
-          warn2("maxTileHeight");
-        }
-      }
       return {
         width: Math.max(1, Math.min(width, decalOpt.maxTileWidth)),
         height: Math.max(1, Math.min(height, decalOpt.maxTileHeight))
@@ -23409,8 +22859,8 @@ function createOrUpdatePatternFromDecal(decalObject, api) {
         }
       }
       var ySum = 0;
-      for (var i3 = 0; i3 < dashArrayY.length; ++i3) {
-        ySum += dashArrayY[i3];
+      for (var i22 = 0; i22 < dashArrayY.length; ++i22) {
+        ySum += dashArrayY[i22];
       }
       if (ySum <= 0) {
         return;
@@ -23427,8 +22877,8 @@ function createOrUpdatePatternFromDecal(decalObject, api) {
           var xId1Total = 0;
           while (x2 < pSize.width * 2) {
             var xSum = 0;
-            for (var i3 = 0; i3 < dashArrayX[xId0].length; ++i3) {
-              xSum += dashArrayX[xId0][i3];
+            for (var i22 = 0; i22 < dashArrayX[xId0].length; ++i22) {
+              xSum += dashArrayX[xId0][i22];
             }
             if (xSum <= 0) {
               break;
@@ -23461,9 +22911,9 @@ function createOrUpdatePatternFromDecal(decalObject, api) {
           yId = 0;
         }
       }
-      function brushSymbol(x3, y4, width2, height2, symbolType) {
+      function brushSymbol(x22, y22, width2, height2, symbolType) {
         var scale2 = isSVG ? 1 : dpr2;
-        var symbol = createSymbol$1(symbolType, x3 * scale2, y4 * scale2, width2 * scale2, height2 * scale2, decalOpt.color, decalOpt.symbolKeepAspect);
+        var symbol = createSymbol$1(symbolType, x22 * scale2, y22 * scale2, width2 * scale2, height2 * scale2, decalOpt.color, decalOpt.symbolKeepAspect);
         if (isSVG) {
           var symbolVNode = zr.painter.renderOneToVNode(symbol);
           if (symbolVNode) {
@@ -23602,20 +23052,10 @@ __name(decalVisual, "decalVisual");
 var lifecycle = new Eventful();
 var implsStore = {};
 function registerImpl(name, impl) {
-  if (process.env.NODE_ENV !== "production") {
-    if (implsStore[name]) {
-      error("Already has an implementation of " + name + ".");
-    }
-  }
   implsStore[name] = impl;
 }
 __name(registerImpl, "registerImpl");
 function getImpl(name) {
-  if (process.env.NODE_ENV !== "production") {
-    if (!implsStore[name]) {
-      error("Implementation of " + name + " doesn't exists.");
-    }
-  }
   return implsStore[name];
 }
 __name(getImpl, "getImpl");
@@ -23698,7 +23138,7 @@ var MessageCenter = (
     function MessageCenter2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
-    __name(MessageCenter2, "MessageCenter");
+    __name(MessageCenter2, "MessageCenter2");
     return MessageCenter2;
   }(Eventful)
 );
@@ -23742,17 +23182,6 @@ var ECharts = (
       var defaultRenderer = "canvas";
       var defaultCoarsePointer = "auto";
       var defaultUseDirtyRect = false;
-      if (process.env.NODE_ENV !== "production") {
-        var root = (
-          /* eslint-disable-next-line */
-          env.hasGlobalWindow ? window : global
-        );
-        if (root) {
-          defaultRenderer = retrieve2(root.__ECHARTS__DEFAULT__RENDERER__, defaultRenderer);
-          defaultCoarsePointer = retrieve2(root.__ECHARTS__DEFAULT__COARSE_POINTER, defaultCoarsePointer);
-          defaultUseDirtyRect = retrieve2(root.__ECHARTS__DEFAULT__USE_DIRTY_RECT__, defaultUseDirtyRect);
-        }
-      }
       if (opts.ssr) {
         registerSSRDataGetter(function(el) {
           var ecData = getECData(el);
@@ -23801,7 +23230,7 @@ var ECharts = (
       setAsPrimitive(_this);
       return _this;
     }
-    __name(ECharts2, "ECharts");
+    __name(ECharts2, "ECharts2");
     ECharts2.prototype._onframe = function() {
       if (this._disposed) {
         return;
@@ -23857,9 +23286,6 @@ var ECharts = (
     };
     ECharts2.prototype.setOption = function(option, notMerge, lazyUpdate) {
       if (this[IN_MAIN_PROCESS_KEY]) {
-        if (process.env.NODE_ENV !== "production") {
-          error("`setOption` should not be called during main process.");
-        }
         return;
       }
       if (this._disposed) {
@@ -23918,7 +23344,6 @@ var ECharts = (
       }
     };
     ECharts2.prototype.setTheme = function() {
-      deprecateLog("ECharts#setTheme() is DEPRECATED in ECharts 3.0");
     };
     ECharts2.prototype.getModel = function() {
       return this._model;
@@ -23936,19 +23361,11 @@ var ECharts = (
       return this._zr.painter.dpr || env.hasGlobalWindow && window.devicePixelRatio || 1;
     };
     ECharts2.prototype.getRenderedCanvas = function(opts) {
-      if (process.env.NODE_ENV !== "production") {
-        deprecateReplaceLog("getRenderedCanvas", "renderToCanvas");
-      }
       return this.renderToCanvas(opts);
     };
     ECharts2.prototype.renderToCanvas = function(opts) {
       opts = opts || {};
       var painter = this._zr.painter;
-      if (process.env.NODE_ENV !== "production") {
-        if (painter.type !== "canvas") {
-          throw new Error("renderToCanvas can only be used in the canvas renderer.");
-        }
-      }
       return painter.getRenderedCanvas({
         backgroundColor: opts.backgroundColor || this._model.get("backgroundColor"),
         pixelRatio: opts.pixelRatio || this.getDevicePixelRatio()
@@ -23957,11 +23374,6 @@ var ECharts = (
     ECharts2.prototype.renderToSVGString = function(opts) {
       opts = opts || {};
       var painter = this._zr.painter;
-      if (process.env.NODE_ENV !== "production") {
-        if (painter.type !== "svg") {
-          throw new Error("renderToSVGString can only be used in the svg renderer.");
-        }
-      }
       return painter.renderToString({
         useViewBox: opts.useViewBox
       });
@@ -24117,16 +23529,8 @@ var ECharts = (
             var view = this._chartsMap[model.__viewId];
             if (view && view.containPoint) {
               result = result || view.containPoint(value, model);
-            } else {
-              if (process.env.NODE_ENV !== "production") {
-                warn(key + ": " + (view ? "The found component do not support containPoint." : "No view mapping to the found component."));
-              }
             }
-          } else {
-            if (process.env.NODE_ENV !== "production") {
-              warn(key + ": containPoint is not supported");
-            }
-          }
+          } else ;
         }, this);
       }, this);
       return !!result;
@@ -24137,11 +23541,6 @@ var ECharts = (
         defaultMainType: "series"
       });
       var seriesModel = parsedFinder.seriesModel;
-      if (process.env.NODE_ENV !== "production") {
-        if (!seriesModel) {
-          warn("There is no specified series model");
-        }
-      }
       var data = seriesModel.getData();
       var dataIndexInside = parsedFinder.hasOwnProperty("dataIndexInside") ? parsedFinder.dataIndexInside : parsedFinder.hasOwnProperty("dataIndex") ? data.indexOfRawIndex(parsedFinder.dataIndex) : null;
       return dataIndexInside != null ? getItemVisualFromData(data, dataIndexInside, visualType) : getVisualFromData(data, visualType);
@@ -24184,11 +23583,6 @@ var ECharts = (
             }
             var model = componentType && componentIndex != null && ecModel.getComponent(componentType, componentIndex);
             var view = model && _this[model.mainType === "series" ? "_chartsMap" : "_componentsMap"][model.__viewId];
-            if (process.env.NODE_ENV !== "production") {
-              if (!isGlobalOut && !(model && view)) {
-                warn("model or view can not be found by params");
-              }
-            }
             params.event = e2;
             params.type = eveName;
             _this._$eventProcessor.eventInfo = {
@@ -24252,9 +23646,6 @@ var ECharts = (
     };
     ECharts2.prototype.resize = function(opts) {
       if (this[IN_MAIN_PROCESS_KEY]) {
-        if (process.env.NODE_ENV !== "production") {
-          error("`resize` should not be called during main process.");
-        }
         return;
       }
       if (this._disposed) {
@@ -24306,9 +23697,6 @@ var ECharts = (
       name = name || "default";
       this.hideLoading();
       if (!loadingEffects[name]) {
-        if (process.env.NODE_ENV !== "production") {
-          warn("Loading effects " + name + " not exists.");
-        }
         return;
       }
       var el = loadingEffects[name](this._api, cfg);
@@ -24375,9 +23763,6 @@ var ECharts = (
       var seriesIndex = params.seriesIndex;
       var ecModel = this.getModel();
       var seriesModel = ecModel.getSeriesByIndex(seriesIndex);
-      if (process.env.NODE_ENV !== "production") {
-        assert(params.data && seriesModel);
-      }
       seriesModel.appendData(params);
       this._scheduler.unfinished = true;
       this.getZr().wakeUp();
@@ -24419,9 +23804,6 @@ var ECharts = (
               // But need a base class to make a type series.
               ChartView.getClass(classType.sub)
             );
-            if (process.env.NODE_ENV !== "production") {
-              assert(Clazz, classType.sub + " does not exist.");
-            }
             view2 = new Clazz();
             view2.init(ecModel, api);
             viewMap[viewId] = view2;
@@ -24660,9 +24042,6 @@ var ECharts = (
           if (coordSys[methodName] && (result = coordSys[methodName](ecModel, parsedFinder, value)) != null) {
             return result;
           }
-        }
-        if (process.env.NODE_ENV !== "production") {
-          warn("No coordinate system that supports " + methodName + " found by the given finder.");
         }
       }, "doConvertPixel");
       updateStreamModes = /* @__PURE__ */ __name(function(ecIns, ecModel) {
@@ -25202,7 +24581,6 @@ echartsProto.on = createRegisterEventWithLowercaseECharts("on");
 echartsProto.off = createRegisterEventWithLowercaseECharts("off");
 echartsProto.one = function(eventName, cb, ctx) {
   var self2 = this;
-  deprecateLog("ECharts#one is deprecated.");
   function wrapped() {
     var args2 = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -25216,9 +24594,6 @@ echartsProto.one = function(eventName, cb, ctx) {
 };
 var MOUSE_EVENT_NAMES = ["click", "dblclick", "mouseover", "mouseout", "mousemove", "mousedown", "mouseup", "globalout", "contextmenu"];
 function disposedWarning(id) {
-  if (process.env.NODE_ENV !== "production") {
-    warn("Instance " + id + " has been disposed");
-  }
 }
 __name(disposedWarning, "disposedWarning");
 var actions = {};
@@ -25235,22 +24610,9 @@ var DOM_ATTRIBUTE_KEY = "_echarts_instance_";
 function init$1(dom, theme2, opts) {
   var isClient = !(opts && opts.ssr);
   if (isClient) {
-    if (process.env.NODE_ENV !== "production") {
-      if (!dom) {
-        throw new Error("Initialize failed: invalid dom.");
-      }
-    }
     var existInstance = getInstanceByDom(dom);
     if (existInstance) {
-      if (process.env.NODE_ENV !== "production") {
-        warn("There is a chart instance already initialized on the dom.");
-      }
       return existInstance;
-    }
-    if (process.env.NODE_ENV !== "production") {
-      if (isDom(dom) && dom.nodeName.toUpperCase() !== "CANVAS" && (!dom.clientWidth && (!opts || opts.width == null) || !dom.clientHeight && (!opts || opts.height == null))) {
-        warn("Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.");
-      }
     }
   }
   var chart = new ECharts(dom, theme2, opts);
@@ -25332,14 +24694,6 @@ function normalizeRegister(targetList, priority, fn, defaultPriority, visualType
   if (isFunction(priority) || isObject$3(priority)) {
     fn = priority;
     priority = defaultPriority;
-  }
-  if (process.env.NODE_ENV !== "production") {
-    if (isNaN(priority) || priority == null) {
-      throw new Error("Illegal priority");
-    }
-    each$f(targetList, function(wrap) {
-      assert(wrap.__raw !== fn);
-    });
   }
   if (indexOf(registeredTasks, fn) >= 0) {
     return;
@@ -25616,7 +24970,7 @@ var DimensionUserOuput = (
       this._encode = encode;
       this._schema = dimRequest;
     }
-    __name(DimensionUserOuput2, "DimensionUserOuput");
+    __name(DimensionUserOuput2, "DimensionUserOuput2");
     DimensionUserOuput2.prototype.get = function() {
       return {
         // Do not generate full dimension name until fist used.
@@ -25644,9 +24998,6 @@ function summarizeDimensions(data, schema) {
     var dimItem = data.getDimensionInfo(dimName);
     var coordDim = dimItem.coordDim;
     if (coordDim) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(VISUAL_DIMENSIONS.get(coordDim) == null);
-      }
       var coordDimIndex = dimItem.coordDimIndex;
       getOrCreateEncodeArr(encode, coordDim)[coordDimIndex] = dimName;
       if (!dimItem.isExtraCoord) {
@@ -25938,9 +25289,6 @@ var SeriesData = (
         if (otherDims.itemId === 0) {
           this._idDimIdx = i2;
         }
-        if (process.env.NODE_ENV !== "production") {
-          assert(assignStoreDimIdx || dimensionInfo.storeDimIndex >= 0);
-        }
         if (assignStoreDimIdx) {
           dimensionInfo.storeDimIndex = i2;
         }
@@ -25957,7 +25305,7 @@ var SeriesData = (
         });
       }
     }
-    __name(SeriesData2, "SeriesData");
+    __name(SeriesData2, "SeriesData2");
     SeriesData2.prototype.getDimension = function(dim) {
       var dimIdx = this._recognizeDimIndex(dim);
       if (dimIdx == null) {
@@ -25994,11 +25342,6 @@ var SeriesData = (
     };
     SeriesData2.prototype._getStoreDimIndex = function(dim) {
       var dimIdx = this.getDimensionIndex(dim);
-      if (process.env.NODE_ENV !== "production") {
-        if (dimIdx == null) {
-          throw new Error("Unknown dimension " + dim);
-        }
-      }
       return dimIdx;
     };
     SeriesData2.prototype.getDimensionInfo = function(dim) {
@@ -26222,11 +25565,6 @@ var SeriesData = (
     };
     SeriesData2.prototype.rawIndexOf = function(dim, value) {
       var invertedIndices = dim && this._invertedIndicesMap[dim];
-      if (process.env.NODE_ENV !== "production") {
-        if (!invertedIndices) {
-          throw new Error("Do not supported yet");
-        }
-      }
       var rawIndex = invertedIndices && invertedIndices[value];
       if (rawIndex == null || isNaN(rawIndex)) {
         return INDEX_NOT_FOUND;
@@ -26289,16 +25627,7 @@ var SeriesData = (
       return list;
     };
     SeriesData2.prototype.modify = function(dims, cb, ctx, ctxCompat) {
-      var _this = this;
       var fCtx = ctx || ctxCompat || this;
-      if (process.env.NODE_ENV !== "production") {
-        each$f(normalizeDimensions(dims), function(dim) {
-          var dimInfo = _this.getDimensionInfo(dim);
-          if (!dimInfo.isCalculationCoord) {
-            console.error("Danger: only stack dimension can be modified");
-          }
-        });
-      }
       var dimIndices = map(normalizeDimensions(dims), this._getStoreDimIndex, this);
       this._store.modify(dimIndices, fCtx ? bind$1(cb, fCtx) : cb);
     };
@@ -26734,7 +26063,7 @@ var CoordSysInfo = (
       this.categoryAxisMap = createHashMap();
       this.coordSysName = coordSysName;
     }
-    __name(CoordSysInfo2, "CoordSysInfo");
+    __name(CoordSysInfo2, "CoordSysInfo2");
     return CoordSysInfo2;
   }()
 );
@@ -26752,14 +26081,6 @@ var fetchers = {
   cartesian2d: /* @__PURE__ */ __name(function(seriesModel, result, axisMap, categoryAxisMap) {
     var xAxisModel = seriesModel.getReferringComponents("xAxis", SINGLE_REFERRING).models[0];
     var yAxisModel = seriesModel.getReferringComponents("yAxis", SINGLE_REFERRING).models[0];
-    if (process.env.NODE_ENV !== "production") {
-      if (!xAxisModel) {
-        throw new Error('xAxis "' + retrieve(seriesModel.get("xAxisIndex"), seriesModel.get("xAxisId"), 0) + '" not found');
-      }
-      if (!yAxisModel) {
-        throw new Error('yAxis "' + retrieve(seriesModel.get("xAxisIndex"), seriesModel.get("yAxisId"), 0) + '" not found');
-      }
-    }
     result.coordSysDims = ["x", "y"];
     axisMap.set("x", xAxisModel);
     axisMap.set("y", yAxisModel);
@@ -26774,11 +26095,6 @@ var fetchers = {
   }, "cartesian2d"),
   singleAxis: /* @__PURE__ */ __name(function(seriesModel, result, axisMap, categoryAxisMap) {
     var singleAxisModel = seriesModel.getReferringComponents("singleAxis", SINGLE_REFERRING).models[0];
-    if (process.env.NODE_ENV !== "production") {
-      if (!singleAxisModel) {
-        throw new Error("singleAxis should be specified.");
-      }
-    }
     result.coordSysDims = ["single"];
     axisMap.set("single", singleAxisModel);
     if (isCategory(singleAxisModel)) {
@@ -26790,14 +26106,6 @@ var fetchers = {
     var polarModel = seriesModel.getReferringComponents("polar", SINGLE_REFERRING).models[0];
     var radiusAxisModel = polarModel.findAxisModel("radiusAxis");
     var angleAxisModel = polarModel.findAxisModel("angleAxis");
-    if (process.env.NODE_ENV !== "production") {
-      if (!angleAxisModel) {
-        throw new Error("angleAxis option not found");
-      }
-      if (!radiusAxisModel) {
-        throw new Error("radiusAxis option not found");
-      }
-    }
     result.coordSysDims = ["radius", "angle"];
     axisMap.set("radius", radiusAxisModel);
     axisMap.set("angle", angleAxisModel);
@@ -27153,12 +26461,6 @@ function getName(obj) {
   }
 }
 __name(getName, "getName");
-function isValueNice(val) {
-  var exp10 = Math.pow(10, quantityExponent(Math.abs(val)));
-  var f2 = Math.abs(val / exp10);
-  return f2 === 0 || f2 === 1 || f2 === 2 || f2 === 3 || f2 === 5;
-}
-__name(isValueNice, "isValueNice");
 function isIntervalOrLogScale(scale2) {
   return scale2.type === "interval" || scale2.type === "log";
 }
@@ -27950,7 +27252,7 @@ var TimeScale = (
       _this.type = "time";
       return _this;
     }
-    __name(TimeScale2, "TimeScale");
+    __name(TimeScale2, "TimeScale2");
     TimeScale2.prototype.getLabel = function(tick) {
       var useUTC = this.getSetting("useUTC");
       return format(tick.value, fullLeveledFormatter[getDefaultFormatPrecisionOfInterval(getPrimaryTimeUnit(this._minLevelUnit))] || fullLeveledFormatter.second, useUTC, this.getSetting("locale"));
@@ -28166,9 +27468,9 @@ function getIntervalTicks(bottomUnitName, approxInterval, isUTC, extent3) {
         value: extent3[1]
       }];
     }
-    for (var i3 = 0; i3 < lastLevelTicks.length - 1; i3++) {
-      var startTick = lastLevelTicks[i3].value;
-      var endTick = lastLevelTicks[i3 + 1].value;
+    for (var i22 = 0; i22 < lastLevelTicks.length - 1; i22++) {
+      var startTick = lastLevelTicks[i22].value;
+      var endTick = lastLevelTicks[i22 + 1].value;
       if (startTick === endTick) {
         continue;
       }
@@ -28221,14 +27523,14 @@ function getIntervalTicks(bottomUnitName, approxInterval, isUTC, extent3) {
           break;
       }
       addTicksInSpan(interval, startTick, endTick, getterName, setterName, isDate, newAddedTicks);
-      if (unitName === "year" && levelTicks2.length > 1 && i3 === 0) {
+      if (unitName === "year" && levelTicks2.length > 1 && i22 === 0) {
         levelTicks2.unshift({
           value: levelTicks2[0].value - interval
         });
       }
     }
-    for (var i3 = 0; i3 < newAddedTicks.length; i3++) {
-      levelTicks2.push(newAddedTicks[i3]);
+    for (var i22 = 0; i22 < newAddedTicks.length; i22++) {
+      levelTicks2.push(newAddedTicks[i22]);
     }
     return newAddedTicks;
   }
@@ -28270,11 +27572,6 @@ function getIntervalTicks(bottomUnitName, approxInterval, isUTC, extent3) {
         }
       }
       currentLevelTicks = [];
-    }
-  }
-  if (process.env.NODE_ENV !== "production") {
-    if (iter >= safeLimit) {
-      warn("Exceed safe limit.");
     }
   }
   var levelsTicksInExtent = filter(map$1(levelsTicks, function(levelTicks2) {
@@ -28427,7 +27724,7 @@ var ScaleRawExtentInfo = (
     function ScaleRawExtentInfo2(scale2, model, originalExtent) {
       this._prepareParams(scale2, model, originalExtent);
     }
-    __name(ScaleRawExtentInfo2, "ScaleRawExtentInfo");
+    __name(ScaleRawExtentInfo2, "ScaleRawExtentInfo2");
     ScaleRawExtentInfo2.prototype._prepareParams = function(scale2, model, dataExtent) {
       if (dataExtent[1] < dataExtent[0]) {
         dataExtent = [NaN, NaN];
@@ -28464,9 +27761,6 @@ var ScaleRawExtentInfo = (
         var boundaryGap = model.get("boundaryGap");
         var boundaryGapArr = isArray$1(boundaryGap) ? boundaryGap : [boundaryGap || 0, boundaryGap || 0];
         if (typeof boundaryGapArr[0] === "boolean" || typeof boundaryGapArr[1] === "boolean") {
-          if (process.env.NODE_ENV !== "production") {
-            console.warn('Boolean type for boundaryGap is only allowed for ordinal axis. Please use string in percentage instead, e.g., "20%". Currently, boundaryGap is set to be 0.');
-          }
           this._boundaryGapInner = [0, 0];
         } else {
           this._boundaryGapInner = [parsePercent$1(boundaryGapArr[0], 1), parsePercent$1(boundaryGapArr[1], 1)];
@@ -28520,16 +27814,10 @@ var ScaleRawExtentInfo = (
       };
     };
     ScaleRawExtentInfo2.prototype.modifyDataMinMax = function(minMaxName, val) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(!this.frozen);
-      }
       this[DATA_MIN_MAX_ATTR[minMaxName]] = val;
     };
     ScaleRawExtentInfo2.prototype.setDeterminedMinMax = function(minMaxName, val) {
       var attr = DETERMINED_MIN_MAX_ATTR[minMaxName];
-      if (process.env.NODE_ENV !== "production") {
-        assert(!this.frozen && this[attr] == null);
-      }
       this[attr] = val;
     };
     ScaleRawExtentInfo2.prototype.freeze = function() {
@@ -31530,9 +30818,6 @@ function setGradient(style, attrs, target, scope) {
     gradientAttrs.cy = retrieve2(val.y, 0.5);
     gradientAttrs.r = retrieve2(val.r, 0.5);
   } else {
-    if (process.env.NODE_ENV !== "production") {
-      logError("Illegal gradient type.");
-    }
     return;
   }
   var colors = val.colorStops;
@@ -31727,11 +31012,6 @@ function createKeyToOldIdx(children, beginIdx, endIdx) {
   for (var i2 = beginIdx; i2 <= endIdx; ++i2) {
     var key = children[i2].key;
     if (key !== void 0) {
-      if (process.env.NODE_ENV !== "production") {
-        if (map2[key] != null) {
-          console.error("Duplicate key " + key);
-        }
-      }
       map2[key] = i2;
     }
   }
@@ -31950,8 +31230,8 @@ var svgId = 0;
 var SVGPainter = function() {
   function SVGPainter2(root, storage2, opts) {
     this.type = "svg";
-    this.refreshHover = createMethodNotSupport("refreshHover");
-    this.configLayer = createMethodNotSupport("configLayer");
+    this.refreshHover = createMethodNotSupport();
+    this.configLayer = createMethodNotSupport();
     this.storage = storage2;
     this._opts = opts = extend({}, opts);
     this.root = root;
@@ -31967,7 +31247,7 @@ var SVGPainter = function() {
     }
     this.resize(opts.width, opts.height);
   }
-  __name(SVGPainter2, "SVGPainter");
+  __name(SVGPainter2, "SVGPainter2");
   SVGPainter2.prototype.getType = function() {
     return this.type;
   };
@@ -32153,9 +31433,6 @@ var SVGPainter = function() {
 }();
 function createMethodNotSupport(method) {
   return function() {
-    if (process.env.NODE_ENV !== "production") {
-      logError('In SVG mode painter not support method "' + method + '"');
-    }
   };
 }
 __name(createMethodNotSupport, "createMethodNotSupport");
@@ -32553,7 +31830,7 @@ var CanvasPainter = function() {
       this._domRoot = root;
     }
   }
-  __name(CanvasPainter2, "CanvasPainter");
+  __name(CanvasPainter2, "CanvasPainter2");
   CanvasPainter2.prototype.getType = function() {
     return "canvas";
   };
@@ -32678,8 +31955,8 @@ var CanvasPainter = function() {
     }
     var finished = true;
     var needsRefreshHover = false;
-    var _loop_1 = /* @__PURE__ */ __name(function(k3) {
-      var layer2 = layerList[k3];
+    var _loop_1 = /* @__PURE__ */ __name(function(k22) {
+      var layer2 = layerList[k22];
       var ctx = layer2.ctx;
       var repaintRects = useDirtyRect && layer2.createRepaintRects(list, prevList, this_1._width, this_1._height);
       var start2 = paintAll ? layer2.__startIndex : layer2.__drawIndex;
@@ -32807,15 +32084,9 @@ var CanvasPainter = function() {
     var prevLayer = null;
     var i2 = -1;
     if (layersMap[zlevel]) {
-      if (process.env.NODE_ENV !== "production") {
-        logError("ZLevel " + zlevel + " has been used already");
-      }
       return;
     }
     if (!isLayerValid(layer)) {
-      if (process.env.NODE_ENV !== "production") {
-        logError("Layer of zlevel " + zlevel + " is not valid");
-      }
       return;
     }
     if (len2 > 0 && zlevel > zlevelList[0]) {
@@ -33094,14 +32365,8 @@ var LineSeriesModel = (
       _this.hasSymbolVisual = true;
       return _this;
     }
-    __name(LineSeriesModel2, "LineSeriesModel");
+    __name(LineSeriesModel2, "LineSeriesModel2");
     LineSeriesModel2.prototype.getInitialData = function(option) {
-      if (process.env.NODE_ENV !== "production") {
-        var coordSys = option.coordinateSystem;
-        if (coordSys !== "polar" && coordSys !== "cartesian2d") {
-          throw new Error("Line not support coordinateSystem besides cartesian and polar");
-        }
-      }
       return createSeriesData(null, this, {
         useEncodeDefaulter: true
       });
@@ -34348,9 +33613,6 @@ function getVisualGradient(data, coordSys, api) {
     return;
   }
   if (coordSys.type !== "cartesian2d") {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Visual map on line style is only supported on cartesian2d.");
-    }
     return;
   }
   var coordDim;
@@ -34364,9 +33626,6 @@ function getVisualGradient(data, coordSys, api) {
     }
   }
   if (!visualMeta) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Visual map on line style only support x or y dimension.");
-    }
     return;
   }
   var axis = coordSys.getAxis(coordDim);
@@ -34552,11 +33811,6 @@ function createLineClipPath(lineView, coordSys, hasAnimation, seriesModel) {
     }
     return clipPath;
   } else {
-    if (process.env.NODE_ENV !== "production") {
-      if (seriesModel.get(["endLabel", "show"])) {
-        console.warn("endLabel is not supported for lines in polar systems.");
-      }
-    }
     return createPolarClipPath(coordSys, hasAnimation, seriesModel);
   }
 }
@@ -34582,7 +33836,7 @@ var LineView = (
     function LineView2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
-    __name(LineView2, "LineView");
+    __name(LineView2, "LineView2");
     LineView2.prototype.init = function() {
       var lineGroup = new Group$3();
       var symbolDraw = new SymbolDraw();
@@ -35142,9 +34396,9 @@ var LineView = (
         polyline.animators[0].during(function() {
           polygon && polygon.dirtyShape();
           var points2 = polyline.shape.__points;
-          for (var i3 = 0; i3 < updatedDataInfo.length; i3++) {
-            var el2 = updatedDataInfo[i3].el;
-            var offset = updatedDataInfo[i3].ptIdx * 2;
+          for (var i22 = 0; i22 < updatedDataInfo.length; i22++) {
+            var el2 = updatedDataInfo[i22].el;
+            var offset = updatedDataInfo[i22].ptIdx * 2;
             el2.x = points2[offset];
             el2.y = points2[offset + 1];
             el2.markRedraw();
@@ -35742,7 +34996,7 @@ var BarView = (
       _this._isFirstFrame = true;
       return _this;
     }
-    __name(BarView2, "BarView");
+    __name(BarView2, "BarView2");
     BarView2.prototype.render = function(seriesModel, ecModel, api, payload) {
       this._model = seriesModel;
       this._removeOnRenderedListener(api);
@@ -35751,8 +35005,6 @@ var BarView = (
       if (coordinateSystemType === "cartesian2d" || coordinateSystemType === "polar") {
         this._progressiveEls = null;
         this._isLargeDraw ? this._renderLarge(seriesModel, ecModel, api) : this._renderNormal(seriesModel, ecModel, api, payload);
-      } else if (process.env.NODE_ENV !== "production") {
-        warn("Only cartesian2d and polar supported for bar.");
       }
     };
     BarView2.prototype.incrementalPrepareRender = function(seriesModel) {
@@ -36175,16 +35427,6 @@ var elementCreator = {
 function shouldRealtimeSort(seriesModel, coordSys) {
   var realtimeSortOption = seriesModel.get("realtimeSort", true);
   var baseAxis = coordSys.getBaseAxis();
-  if (process.env.NODE_ENV !== "production") {
-    if (realtimeSortOption) {
-      if (baseAxis.type !== "category") {
-        warn("`realtimeSort` will not work because this bar series is not based on a category axis.");
-      }
-      if (coordSys.type !== "cartesian2d") {
-        warn("`realtimeSort` will not work because this bar series is not on cartesian2d.");
-      }
-    }
-  }
   if (realtimeSortOption && baseAxis.type === "category" && coordSys.type === "cartesian2d") {
     return {
       baseAxis,
@@ -36357,7 +35599,7 @@ var LagePathShape = (
   /* @__PURE__ */ function() {
     function LagePathShape2() {
     }
-    __name(LagePathShape2, "LagePathShape");
+    __name(LagePathShape2, "LagePathShape2");
     return LagePathShape2;
   }()
 );
@@ -36370,7 +35612,7 @@ var LargePath = (
       _this.type = "largeBar";
       return _this;
     }
-    __name(LargePath2, "LargePath");
+    __name(LargePath2, "LargePath2");
     LargePath2.prototype.getDefaultShape = function() {
       return new LagePathShape();
     };
@@ -38454,11 +37696,6 @@ function findAxisModels(seriesModel) {
   each$f(axisModelMap, function(v4, key) {
     var axisType = key.replace(/Model$/, "");
     var axisModel = seriesModel.getReferringComponents(axisType, SINGLE_REFERRING).models[0];
-    if (process.env.NODE_ENV !== "production") {
-      if (!axisModel) {
-        throw new Error(axisType + ' "' + retrieve3(seriesModel.get(axisType + "Index"), seriesModel.get(axisType + "Id"), 0) + '" not found');
-      }
-    }
     axisModelMap[key] = axisModel;
   });
   return axisModelMap;
@@ -38532,15 +37769,6 @@ function alignScaleTicks(scale2, axisModel, alignToScale) {
   if (t0 || t1) {
     intervalScaleProto2.setNiceExtent.call(scale2, min3 + interval, max3 - interval);
   }
-  if (process.env.NODE_ENV !== "production") {
-    var ticks = intervalScaleProto2.getTicks.call(scale2);
-    if (ticks[1] && (!isValueNice(interval) || getPrecisionSafe(ticks[1].value) > getPrecisionSafe(interval))) {
-      warn(
-        // eslint-disable-next-line
-        "The ticks may be not readable when set min: " + axisModel.get("min") + ", max: " + axisModel.get("max") + " and alignTicks: true"
-      );
-    }
-  }
 }
 __name(alignScaleTicks, "alignScaleTicks");
 var Grid = (
@@ -38557,7 +37785,7 @@ var Grid = (
       this._initCartesian(gridModel, ecModel, api);
       this.model = gridModel;
     }
-    __name(Grid2, "Grid");
+    __name(Grid2, "Grid2");
     Grid2.prototype.getRect = function() {
       return this._rect;
     };
@@ -38852,14 +38080,6 @@ var Grid = (
         var xAxisModel = axesModelMap.xAxisModel;
         var yAxisModel = axesModelMap.yAxisModel;
         var gridModel = xAxisModel.getCoordSysModel();
-        if (process.env.NODE_ENV !== "production") {
-          if (!gridModel) {
-            throw new Error('Grid "' + retrieve3(xAxisModel.get("gridIndex"), xAxisModel.get("gridId"), 0) + '" not found');
-          }
-          if (xAxisModel.getCoordSysModel() !== yAxisModel.getCoordSysModel()) {
-            throw new Error("xAxis and yAxis must use the same grid");
-          }
-        }
         var grid = gridModel.coordinateSystem;
         seriesModel.coordinateSystem = grid.getCartesian(xAxisModel.componentIndex, yAxisModel.componentIndex);
       });
@@ -39644,7 +38864,7 @@ var AxisView = (
       _this.type = AxisView2.type;
       return _this;
     }
-    __name(AxisView2, "AxisView");
+    __name(AxisView2, "AxisView2");
     AxisView2.prototype.render = function(axisModel, ecModel, api, payload) {
       this.axisPointerClass && fixValue(axisModel);
       _super.prototype.render.apply(this, arguments);
@@ -39674,11 +38894,6 @@ var AxisView = (
       this._axisPointer = null;
     };
     AxisView2.registerAxisPointerClass = function(type, clazz) {
-      if (process.env.NODE_ENV !== "production") {
-        if (axisPointerClazz[type]) {
-          throw new Error("axisPointer " + type + " exists");
-        }
-      }
       axisPointerClazz[type] = clazz;
     };
     AxisView2.getAxisPointerClass = function(type) {
@@ -40449,7 +39664,7 @@ var RadarView = (
       _this.type = RadarView2.type;
       return _this;
     }
-    __name(RadarView2, "RadarView");
+    __name(RadarView2, "RadarView2");
     RadarView2.prototype.render = function(radarModel, ecModel, api) {
       var group = this.group;
       group.removeAll();
@@ -40545,10 +39760,6 @@ var RadarView = (
           }
           if (points2[0]) {
             points2.push(points2[0].slice());
-          } else {
-            if (process.env.NODE_ENV !== "production") {
-              console.error("Can't draw value axis " + i2);
-            }
           }
           if (showSplitLine) {
             var colorIndex = getColorIndex(splitLines, splitLineColorsArr, i2);
@@ -41042,15 +40253,10 @@ var SVGParser = function() {
     this._defs = {};
     this._root = null;
   }
-  __name(SVGParser2, "SVGParser");
+  __name(SVGParser2, "SVGParser2");
   SVGParser2.prototype.parse = function(xml, opt) {
     opt = opt || {};
     var svg = parseXML(xml);
-    if (process.env.NODE_ENV !== "production") {
-      if (!svg) {
-        throw new Error("Illegal svg");
-      }
-    }
     this._defsUsePending = [];
     var root = new Group$3();
     this._root = root;
@@ -42011,9 +41217,6 @@ const geoSourceManager = {
   load: /* @__PURE__ */ __name(function(mapName, nameMap, nameProperty) {
     var resource = storage.get(mapName);
     if (!resource) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Map " + mapName + " not exists. The GeoJSON of the map must be provided.");
-      }
       return;
     }
     return resource.load(nameMap, nameProperty);
@@ -43104,25 +42307,11 @@ var Geo = (
       var projection = opt.projection;
       var source = geoSourceManager.load(map2, opt.nameMap, opt.nameProperty);
       var resource = geoSourceManager.getGeoResource(map2);
-      var resourceType = _this.resourceType = resource ? resource.type : null;
+      _this.resourceType = resource ? resource.type : null;
       var regions = _this.regions = source.regions;
       var defaultParams = GEO_DEFAULT_PARAMS[resource.type];
       _this._regionsMap = source.regionsMap;
       _this.regions = source.regions;
-      if (process.env.NODE_ENV !== "production" && projection) {
-        if (resourceType === "geoSVG") {
-          if (process.env.NODE_ENV !== "production") {
-            warn("Map " + map2 + " with SVG source can't use projection. Only GeoJSON source supports projection.");
-          }
-          projection = null;
-        }
-        if (!(projection.project && projection.unproject)) {
-          if (process.env.NODE_ENV !== "production") {
-            warn("project and unproject must be both provided in the projeciton.");
-          }
-          projection = null;
-        }
-      }
       _this.projection = projection;
       var boundingRect;
       if (projection) {
@@ -43139,7 +42328,7 @@ var Geo = (
       _this._invertLongitute = projection ? false : defaultParams.invertLongitute;
       return _this;
     }
-    __name(Geo2, "Geo");
+    __name(Geo2, "Geo2");
     Geo2.prototype._transformTo = function(x2, y3, width, height) {
       var rect = this.getBoundingRect();
       var invertLongitute = this._invertLongitute;
@@ -43225,11 +42414,8 @@ function resizeGeo(geoModel, api) {
   if (boundingCoords != null) {
     var leftTop_1 = boundingCoords[0];
     var rightBottom_1 = boundingCoords[1];
-    if (!(isFinite(leftTop_1[0]) && isFinite(leftTop_1[1]) && isFinite(rightBottom_1[0]) && isFinite(rightBottom_1[1]))) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Invalid boundingCoords");
-      }
-    } else {
+    if (!(isFinite(leftTop_1[0]) && isFinite(leftTop_1[1]) && isFinite(rightBottom_1[0]) && isFinite(rightBottom_1[1]))) ;
+    else {
       var projection_1 = this.projection;
       if (projection_1) {
         var xMin = leftTop_1[0];
@@ -43270,10 +42456,6 @@ function resizeGeo(geoModel, api) {
     size = parsePercent(sizeOption, Math.min(viewWidth, viewHeight));
     if (!isNaN(center2[0]) && !isNaN(center2[1]) && !isNaN(size)) {
       useCenterAndSize = true;
-    } else {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Given layoutCenter or layoutSize data are invalid. Use left/top/width/height instead.");
-      }
     }
   }
   var viewRect2;
@@ -43313,7 +42495,7 @@ var GeoCreator = (
     function GeoCreator2() {
       this.dimensions = geo2DDimensions;
     }
-    __name(GeoCreator2, "GeoCreator");
+    __name(GeoCreator2, "GeoCreator2");
     GeoCreator2.prototype.create = function(ecModel, api) {
       var geoList = [];
       function getCommonGeoProperties(model) {
@@ -43910,7 +43092,7 @@ var TreeEdgeShape = (
       this.parentPoint = [];
       this.childPoints = [];
     }
-    __name(TreeEdgeShape2, "TreeEdgeShape");
+    __name(TreeEdgeShape2, "TreeEdgeShape2");
     return TreeEdgeShape2;
   }()
 );
@@ -43921,7 +43103,7 @@ var TreePath = (
     function TreePath2(opts) {
       return _super.call(this, opts) || this;
     }
-    __name(TreePath2, "TreePath");
+    __name(TreePath2, "TreePath2");
     TreePath2.prototype.getDefaultStyle = function() {
       return {
         stroke: "#000",
@@ -43977,7 +43159,7 @@ var TreeView = (
       _this._mainGroup = new Group$3();
       return _this;
     }
-    __name(TreeView2, "TreeView");
+    __name(TreeView2, "TreeView2");
     TreeView2.prototype.init = function(ecModel, api) {
       this._controller = new RoamController(api.getZr());
       this._controllerHost = {
@@ -44293,10 +43475,6 @@ function drawEdge(seriesModel, node, virtualRoot, symbolEl, sourceOldLayout, sou
             childPoints
           }
         }, seriesModel);
-      }
-    } else {
-      if (process.env.NODE_ENV !== "production") {
-        throw new Error("The polyline edgeShape can only be used in orthogonal layout");
       }
     }
   }
@@ -46397,7 +45575,7 @@ var VisualMapping = (
         normalizeVisualRange(thisOption);
       }
     }
-    __name(VisualMapping2, "VisualMapping");
+    __name(VisualMapping2, "VisualMapping2");
     VisualMapping2.prototype.mapValueToVisual = function(value) {
       var normalized = this._normalizeData(value);
       return this._normalizedToVisual(normalized, value);
@@ -46714,9 +45892,6 @@ function setVisualToOption(thisOption, visualArr) {
   if (thisOption.type === "color") {
     thisOption.parsedVisual = map$1(visualArr, function(item) {
       var color = parse(item);
-      if (!color && process.env.NODE_ENV !== "production") {
-        warn("'" + item + "' is an illegal color, fallback to '#000000'", true);
-      }
       return color || [0, 0, 0, 1];
     });
   }
@@ -48843,7 +48018,7 @@ var Graph = (
       this._edgesMap = {};
       this._directed = directed || false;
     }
-    __name(Graph2, "Graph");
+    __name(Graph2, "Graph2");
     Graph2.prototype.isDirected = function() {
       return this._directed;
     };
@@ -48851,9 +48026,6 @@ var Graph = (
       id = id == null ? "" + dataIndex : "" + id;
       var nodesMap = this._nodesMap;
       if (nodesMap[generateNodeKey(id)]) {
-        if (process.env.NODE_ENV !== "production") {
-          console.error("Graph nodes have duplicate name or id");
-        }
         return;
       }
       var node = new GraphNode(id, dataIndex);
@@ -49018,7 +48190,7 @@ var GraphNode = (
       this.id = id == null ? "" : id;
       this.dataIndex = dataIndex == null ? -1 : dataIndex;
     }
-    __name(GraphNode2, "GraphNode");
+    __name(GraphNode2, "GraphNode2");
     GraphNode2.prototype.degree = function() {
       return this.edges.length;
     };
@@ -49100,7 +48272,7 @@ var GraphEdge = (
       this.node2 = n22;
       this.dataIndex = dataIndex == null ? -1 : dataIndex;
     }
-    __name(GraphEdge2, "GraphEdge");
+    __name(GraphEdge2, "GraphEdge2");
     GraphEdge2.prototype.getModel = function(path) {
       if (this.dataIndex < 0) {
         return;
@@ -50503,16 +49675,6 @@ function labelLayout(data) {
       var x2 = void 0;
       var y22 = void 0;
       var labelLineLen = labelLineModel.get("length");
-      if (process.env.NODE_ENV !== "production") {
-        if (orient === "vertical" && ["top", "bottom"].indexOf(labelPosition) > -1) {
-          labelPosition = "left";
-          console.warn("Position error: Funnel chart on vertical orient dose not support top and bottom.");
-        }
-        if (orient === "horizontal" && ["left", "right"].indexOf(labelPosition) > -1) {
-          labelPosition = "bottom";
-          console.warn("Position error: Funnel chart on horizontal orient dose not support left and right.");
-        }
-      }
       if (labelPosition === "left") {
         x1 = (points2[3][0] + points2[0][0]) / 2;
         y1 = (points2[3][1] + points2[0][1]) / 2;
@@ -51672,9 +50834,6 @@ var BrushController = (
       _this._track = [];
       _this._covers = [];
       _this._handlers = {};
-      if (process.env.NODE_ENV !== "production") {
-        assert(zr);
-      }
       _this._zr = zr;
       _this.group = new Group$3();
       _this._uid = "brushController_" + baseUID++;
@@ -51683,11 +50842,8 @@ var BrushController = (
       }, _this);
       return _this;
     }
-    __name(BrushController2, "BrushController");
+    __name(BrushController2, "BrushController2");
     BrushController2.prototype.enableBrush = function(brushOption) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(this._mounted);
-      }
       this._brushType && this._doDisableBrush();
       brushOption.brushType && this._doEnableBrush(brushOption);
       return this;
@@ -51724,9 +50880,6 @@ var BrushController = (
     };
     BrushController2.prototype.mount = function(opt) {
       opt = opt || {};
-      if (process.env.NODE_ENV !== "production") {
-        this._mounted = true;
-      }
       this._enableGlobalPan = opt.enableGlobalPan;
       var thisGroup = this.group;
       this._zr.add(thisGroup);
@@ -51741,9 +50894,6 @@ var BrushController = (
       return this;
     };
     BrushController2.prototype.updateCovers = function(coverConfigList) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(this._mounted);
-      }
       coverConfigList = map$1(coverConfigList, function(coverConfig) {
         return merge(clone$4(DEFAULT_BRUSH_OPT), coverConfig, true);
       });
@@ -51780,17 +50930,9 @@ var BrushController = (
       __name(remove, "remove");
     };
     BrushController2.prototype.unmount = function() {
-      if (process.env.NODE_ENV !== "production") {
-        if (!this._mounted) {
-          return;
-        }
-      }
       this.enableBrush(false);
       clearCovers(this);
       this._zr.remove(this.group);
-      if (process.env.NODE_ENV !== "production") {
-        this._mounted = false;
-      }
       return this;
     };
     BrushController2.prototype.dispose = function() {
@@ -52159,9 +51301,6 @@ function updateCoverByMouse(controller, e2, localCursorPoint, isEnd) {
 __name(updateCoverByMouse, "updateCoverByMouse");
 function determineBrushType(brushType, panel) {
   if (brushType === "auto") {
-    if (process.env.NODE_ENV !== "production") {
-      assert(panel && panel.defaultBrushType, 'MUST have defaultBrushType when brushType is "atuo"');
-    }
     return panel.defaultBrushType;
   }
   return brushType;
@@ -52801,7 +51940,7 @@ var SankeySeriesModel = (
       _this.type = SankeySeriesModel2.type;
       return _this;
     }
-    __name(SankeySeriesModel2, "SankeySeriesModel");
+    __name(SankeySeriesModel2, "SankeySeriesModel2");
     SankeySeriesModel2.prototype.getInitialData = function(option, ecModel) {
       var links = option.edges || option.links || [];
       var nodes = option.data || option.nodes || [];
@@ -52811,10 +51950,6 @@ var SankeySeriesModel = (
       for (var i2 = 0; i2 < levels.length; i2++) {
         if (levels[i2].depth != null && levels[i2].depth >= 0) {
           levelModels[levels[i2].depth] = new Model(levels[i2], this, ecModel);
-        } else {
-          if (process.env.NODE_ENV !== "production") {
-            throw new Error("levels[i].depth is mandatory and should be natural number");
-          }
         }
       }
       var graph = createGraphFromNodeEdge(nodes, links, this, true, beforeLink);
@@ -53865,9 +53000,6 @@ var boxplotTransform = {
     var upstream = params.upstream;
     if (upstream.sourceFormat !== SOURCE_FORMAT_ARRAY_ROWS) {
       var errMsg = "";
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = makePrintable("source data is not applicable for this boxplot transform. Expect number[][].");
-      }
       throwError(errMsg);
     }
     var result = prepareBoxplotData(upstream.getRawData(), params.config);
@@ -55260,9 +54392,6 @@ var linesLayout = {
   reset: /* @__PURE__ */ __name(function(seriesModel) {
     var coordSys = seriesModel.coordinateSystem;
     if (!coordSys) {
-      if (process.env.NODE_ENV !== "production") {
-        error("The lines series must have a coordinate system.");
-      }
       return;
     }
     var isPolyline = seriesModel.get("polyline");
@@ -55329,7 +54458,7 @@ var LinesView = (
       _this.type = LinesView2.type;
       return _this;
     }
-    __name(LinesView2, "LinesView");
+    __name(LinesView2, "LinesView2");
     LinesView2.prototype.render = function(seriesModel, ecModel, api) {
       var data = seriesModel.getData();
       var lineDraw = this._updateLineDraw(data, seriesModel);
@@ -55351,8 +54480,6 @@ var LinesView = (
             motionBlur: true,
             lastFrameAlpha: Math.max(Math.min(trailLength / 10 + 0.9, 1), 0)
           });
-        } else if (process.env.NODE_ENV !== "production") {
-          console.warn("SVG render mode doesn't support lines with trail effect");
         }
       }
       lineDraw.updateData(data);
@@ -55405,11 +54532,6 @@ var LinesView = (
       var isPolyline = !!seriesModel.get("polyline");
       var pipelineContext = seriesModel.pipelineContext;
       var isLargeDraw = pipelineContext.large;
-      if (process.env.NODE_ENV !== "production") {
-        if (hasEffect && isLargeDraw) {
-          console.warn("Large lines not support effect");
-        }
-      }
       if (!lineDraw || hasEffect !== this._hasEffet || isPolyline !== this._isPolyline || isLargeDraw !== this._isLargeDraw) {
         if (lineDraw) {
           lineDraw.remove();
@@ -55449,9 +54571,6 @@ var Float64Arr = typeof Float64Array === "undefined" ? Array : Float64Array;
 function compatEc2(seriesOpt) {
   var data = seriesOpt.data;
   if (data && data[0] && data[0][0] && data[0][0].coord) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Lines data configuration has been changed to { coords:[[1,2],[2,3]] }");
-    }
     seriesOpt.data = map$1(data, function(itemOpt) {
       var coords = [itemOpt[0].coord, itemOpt[1].coord];
       var target = {
@@ -55479,7 +54598,7 @@ var LinesSeriesModel = (
       _this.visualDrawType = "stroke";
       return _this;
     }
-    __name(LinesSeriesModel2, "LinesSeriesModel");
+    __name(LinesSeriesModel2, "LinesSeriesModel2");
     LinesSeriesModel2.prototype.init = function(option) {
       option.data = option.data || [];
       compatEc2(option);
@@ -55520,11 +54639,6 @@ var LinesSeriesModel = (
     LinesSeriesModel2.prototype._getCoordsFromItemModel = function(idx) {
       var itemModel = this.getData().getItemModel(idx);
       var coords = itemModel.option instanceof Array ? itemModel.option : itemModel.getShallow("coords");
-      if (process.env.NODE_ENV !== "production") {
-        if (!(coords instanceof Array && coords.length > 0 && coords[0] instanceof Array)) {
-          throw new Error("Invalid coords " + JSON.stringify(coords) + ". Lines must have 2d coords array in data item.");
-        }
-      }
       return coords;
     };
     LinesSeriesModel2.prototype.getLineCoordsCount = function(idx) {
@@ -55576,11 +54690,6 @@ var LinesSeriesModel = (
             var y3 = data[i2++];
             coordsStorage[coordsCursor++] = x2;
             coordsStorage[coordsCursor++] = y3;
-            if (i2 > len2) {
-              if (process.env.NODE_ENV !== "production") {
-                throw new Error("Invalid data format.");
-              }
-            }
           }
         }
         return {
@@ -55596,12 +54705,6 @@ var LinesSeriesModel = (
       };
     };
     LinesSeriesModel2.prototype.getInitialData = function(option, ecModel) {
-      if (process.env.NODE_ENV !== "production") {
-        var CoordSys = CoordinateSystemManager.get(option.coordinateSystem);
-        if (!CoordSys) {
-          throw new Error("Unknown coordinate system " + option.coordinateSystem);
-        }
-      }
       var lineData = new SeriesData(["value"], this);
       lineData.hasItemOption = false;
       lineData.initData(option.data, [], function(dataItem, dimName, dataIndex, dimIndex) {
@@ -55885,7 +54988,7 @@ var HeatmapView = (
       _this.type = HeatmapView2.type;
       return _this;
     }
-    __name(HeatmapView2, "HeatmapView");
+    __name(HeatmapView2, "HeatmapView2");
     HeatmapView2.prototype.render = function(seriesModel, ecModel, api) {
       var visualMapOfThisSeries;
       ecModel.eachComponent("visualMap", function(visualMap) {
@@ -55895,11 +54998,6 @@ var HeatmapView = (
           }
         });
       });
-      if (process.env.NODE_ENV !== "production") {
-        if (!visualMapOfThisSeries) {
-          throw new Error("Heatmap must use with visualMap");
-        }
-      }
       this._progressiveEls = null;
       this.group.removeAll();
       var coordSys = seriesModel.coordinateSystem;
@@ -55936,14 +55034,6 @@ var HeatmapView = (
       if (isCartesian2d) {
         var xAxis = coordSys.getAxis("x");
         var yAxis = coordSys.getAxis("y");
-        if (process.env.NODE_ENV !== "production") {
-          if (!(xAxis.type === "category" && yAxis.type === "category")) {
-            throw new Error("Heatmap on cartesian must have two category axes");
-          }
-          if (!(xAxis.onBand && yAxis.onBand)) {
-            throw new Error("Heatmap on cartesian must have two axes with boundaryGap true");
-          }
-        }
         width = xAxis.getBandWidth() + 0.5;
         height = yAxis.getBandWidth() + 0.5;
         xAxisExtent = xAxis.scale.getExtent();
@@ -56774,8 +55864,8 @@ var ThemeRiverView = (
       __name(keyGetter, "keyGetter");
       var dataDiffer = new DataDiffer(this._layersSeries || [], layersSeries, keyGetter, keyGetter);
       var newLayersGroups = [];
-      dataDiffer.add(bind$1(process2, this, "add")).update(bind$1(process2, this, "update")).remove(bind$1(process2, this, "remove")).execute();
-      function process2(status, idx, oldIdx) {
+      dataDiffer.add(bind$1(process, this, "add")).update(bind$1(process, this, "update")).remove(bind$1(process, this, "remove")).execute();
+      function process(status, idx, oldIdx) {
         var oldLayersGroups = self2._layers;
         if (status === "remove") {
           group.remove(oldLayersGroups[idx]);
@@ -56856,7 +55946,7 @@ var ThemeRiverView = (
         setStatesStylesFromModel(polygon, seriesModel);
         toggleHoverEmphasis(polygon, emphasisModel.get("focus"), emphasisModel.get("blurScope"), emphasisModel.get("disabled"));
       }
-      __name(process2, "process");
+      __name(process, "process");
       this._layersSeries = layersSeries;
       this._layers = newLayersGroups;
     };
@@ -57372,9 +56462,6 @@ function installSunburstAction(registers) {
       }
     }
     __name(handleHighlight, "handleHighlight");
-    if (process.env.NODE_ENV !== "production") {
-      deprecateReplaceLog("sunburstHighlight", "highlight");
-    }
     api.dispatchAction(extend(payload, {
       type: "highlight"
     }));
@@ -57384,9 +56471,6 @@ function installSunburstAction(registers) {
     update: "updateView"
   }, function(payload, ecModel, api) {
     payload = extend({}, payload);
-    if (process.env.NODE_ENV !== "production") {
-      deprecateReplaceLog("sunburstUnhighlight", "downplay");
-    }
     api.dispatchAction(extend(payload, {
       type: "downplay"
     }));
@@ -58084,7 +57168,6 @@ function calendarPrepareCustom(coordSys) {
   };
 }
 __name(calendarPrepareCustom, "calendarPrepareCustom");
-var deprecatedLogs = {};
 function isEC4CompatibleStyle(style, elType, hasOwnTextContentOption, hasOwnTextConfig) {
   return style && (style.legacy || style.legacy !== false && !hasOwnTextContentOption && !hasOwnTextConfig && elType !== "tspan" && (elType === "text" || hasOwn(style, "text")));
 }
@@ -58223,27 +57306,17 @@ function convertToEC4RichItem(out2, richItem) {
   hasOwn(richItem, "textShadowOffsetY") && (out2.textShadowOffsetY = richItem.textShadowOffsetY);
 }
 __name(convertToEC4RichItem, "convertToEC4RichItem");
-function warnDeprecated(deprecated, insteadApproach) {
-  if (process.env.NODE_ENV !== "production") {
-    var key = deprecated + "^_^" + insteadApproach;
-    if (!deprecatedLogs[key]) {
-      console.warn('[ECharts] DEPRECATED: "' + deprecated + '" has been deprecated. ' + insteadApproach);
-      deprecatedLogs[key] = true;
-    }
-  }
-}
-__name(warnDeprecated, "warnDeprecated");
 var LEGACY_TRANSFORM_PROPS_MAP = {
   position: ["x", "y"],
   scale: ["scaleX", "scaleY"],
   origin: ["originX", "originY"]
 };
 var LEGACY_TRANSFORM_PROPS = keys(LEGACY_TRANSFORM_PROPS_MAP);
-var TRANSFORM_PROPS_MAP = reduce(TRANSFORMABLE_PROPS, function(obj, key) {
+reduce(TRANSFORMABLE_PROPS, function(obj, key) {
   obj[key] = 1;
   return obj;
 }, {});
-var transformPropNamesStr = TRANSFORMABLE_PROPS.join(", ");
+TRANSFORMABLE_PROPS.join(", ");
 var ELEMENT_ANIMATABLE_PROPS = ["", "style", "shape", "extra"];
 var transitionInnerStore = makeInner();
 function getElementAnimationConfig(animationType, el, elOption, parentModel, dataIndex) {
@@ -58390,22 +57463,13 @@ var tmpDuringScope = {};
 var transitionDuringAPI = {
   // Usually other props do not need to be changed in animation during.
   setTransform: /* @__PURE__ */ __name(function(key, val) {
-    if (process.env.NODE_ENV !== "production") {
-      assert(hasOwn(TRANSFORM_PROPS_MAP, key), "Only " + transformPropNamesStr + " available in `setTransform`.");
-    }
     tmpDuringScope.el[key] = val;
     return this;
   }, "setTransform"),
   getTransform: /* @__PURE__ */ __name(function(key) {
-    if (process.env.NODE_ENV !== "production") {
-      assert(hasOwn(TRANSFORM_PROPS_MAP, key), "Only " + transformPropNamesStr + " available in `getTransform`.");
-    }
     return tmpDuringScope.el[key];
   }, "getTransform"),
   setShape: /* @__PURE__ */ __name(function(key, val) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var el = tmpDuringScope.el;
     var shape = el.shape || (el.shape = {});
     shape[key] = val;
@@ -58413,66 +57477,38 @@ var transitionDuringAPI = {
     return this;
   }, "setShape"),
   getShape: /* @__PURE__ */ __name(function(key) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var shape = tmpDuringScope.el.shape;
     if (shape) {
       return shape[key];
     }
   }, "getShape"),
   setStyle: /* @__PURE__ */ __name(function(key, val) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var el = tmpDuringScope.el;
     var style = el.style;
     if (style) {
-      if (process.env.NODE_ENV !== "production") {
-        if (eqNaN(val)) {
-          warn("style." + key + " must not be assigned with NaN.");
-        }
-      }
       style[key] = val;
       el.dirtyStyle && el.dirtyStyle();
     }
     return this;
   }, "setStyle"),
   getStyle: /* @__PURE__ */ __name(function(key) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var style = tmpDuringScope.el.style;
     if (style) {
       return style[key];
     }
   }, "getStyle"),
   setExtra: /* @__PURE__ */ __name(function(key, val) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var extra = tmpDuringScope.el.extra || (tmpDuringScope.el.extra = {});
     extra[key] = val;
     return this;
   }, "setExtra"),
   getExtra: /* @__PURE__ */ __name(function(key) {
-    if (process.env.NODE_ENV !== "production") {
-      assertNotReserved(key);
-    }
     var extra = tmpDuringScope.el.extra;
     if (extra) {
       return extra[key];
     }
   }, "getExtra")
 };
-function assertNotReserved(key) {
-  if (process.env.NODE_ENV !== "production") {
-    if (key === "transition" || key === "enterFrom" || key === "leaveTo") {
-      throw new Error('key must not be "' + key + '"');
-    }
-  }
-}
-__name(assertNotReserved, "assertNotReserved");
 function duringCall() {
   var scope = this;
   var el = scope.el;
@@ -58547,9 +57583,6 @@ function prepareTransformTransitionFrom(el, elOption, transFromProps) {
       continue;
     }
     var elVal = el[key];
-    if (process.env.NODE_ENV !== "production") {
-      checkTransformPropRefer(key, "el.transition");
-    }
     transFromProps[key] = elVal;
   }
 }
@@ -58611,14 +57644,6 @@ function isNonStyleTransitionEnabled(optVal, elVal) {
   return !isArrayLike(optVal) ? optVal != null && isFinite(optVal) : optVal !== elVal;
 }
 __name(isNonStyleTransitionEnabled, "isNonStyleTransitionEnabled");
-var checkTransformPropRefer;
-if (process.env.NODE_ENV !== "production") {
-  checkTransformPropRefer = /* @__PURE__ */ __name(function(key, usedIn) {
-    if (!hasOwn(TRANSFORM_PROPS_MAP, key)) {
-      warn("Prop `" + key + "` is not a permitted in `" + usedIn + "`. Only `" + keys(TRANSFORM_PROPS_MAP).join("`, `") + "` are permitted.");
-    }
-  }, "checkTransformPropRefer");
-}
 var getStateToRestore = makeInner();
 var KEYFRAME_EXCLUDE_KEYS = ["percent", "easing", "shape", "style", "extra"];
 function stopPreviousKeyframeAnimationAndRestore(el) {
@@ -58651,18 +57676,12 @@ function applyKeyframeAnimation(el, animationOpts, animatableModel) {
       return;
     }
     var animator;
-    var endFrameIsSet = false;
     keyframes.sort(function(a2, b2) {
       return a2.percent - b2.percent;
     });
     each$f(keyframes, function(kf) {
       var animators = el.animators;
       var kfValues = targetPropName ? kf[targetPropName] : kf;
-      if (process.env.NODE_ENV !== "production") {
-        if (kf.percent >= 1) {
-          endFrameIsSet = true;
-        }
-      }
       if (!kfValues) {
         return;
       }
@@ -58693,11 +57712,6 @@ function applyKeyframeAnimation(el, animationOpts, animatableModel) {
     });
     if (!animator) {
       return;
-    }
-    if (process.env.NODE_ENV !== "production") {
-      if (!endFrameIsSet) {
-        warn("End frame with percent: 1 is missing in the keyframeAnimation.", true);
-      }
     }
     animator.delay(animationOpts.delay || 0).duration(duration).start(animationOpts.easing);
   });
@@ -58767,7 +57781,7 @@ var CustomChartView = (
       _this.type = CustomChartView2.type;
       return _this;
     }
-    __name(CustomChartView2, "CustomChartView");
+    __name(CustomChartView2, "CustomChartView2");
     CustomChartView2.prototype.render = function(customSeries, ecModel, api, payload) {
       this._progressiveEls = null;
       var oldData = this._data;
@@ -58863,9 +57877,6 @@ function createEl$1(elOption) {
     var Clz = getShapeClass(graphicType);
     if (!Clz) {
       var errMsg = "";
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = 'graphic type "' + graphicType + '" can not be found.';
-      }
       throwError(errMsg);
     }
     el = new Clz();
@@ -58969,10 +57980,6 @@ function makeRenderItem(customSeries, data, ecModel, api) {
   var coordSys = customSeries.coordinateSystem;
   var prepareResult2 = {};
   if (coordSys) {
-    if (process.env.NODE_ENV !== "production") {
-      assert(renderItem, "series.render is required.");
-      assert(coordSys.prepareCustoms || prepareCustoms[coordSys.type], "This coordSys does not support custom series.");
-    }
     prepareResult2 = coordSys.prepareCustoms ? coordSys.prepareCustoms(coordSys) : prepareCustoms[coordSys.type](coordSys);
   }
   var userAPI = defaults({
@@ -59055,9 +58062,6 @@ function makeRenderItem(customSeries, data, ecModel, api) {
   }
   __name(ordinalRawValue, "ordinalRawValue");
   function style(userProps, dataIndexInside) {
-    if (process.env.NODE_ENV !== "production") {
-      warnDeprecated("api.style", "Please write literal style directly instead.");
-    }
     dataIndexInside == null && (dataIndexInside = currDataIndexInside);
     var style2 = data.getItemVisual(dataIndexInside, "style");
     var visualColor = style2 && style2.fill;
@@ -59080,9 +58084,6 @@ function makeRenderItem(customSeries, data, ecModel, api) {
   }
   __name(style, "style");
   function styleEmphasis(userProps, dataIndexInside) {
-    if (process.env.NODE_ENV !== "production") {
-      warnDeprecated("api.styleEmphasis", "Please write literal style directly instead.");
-    }
     dataIndexInside == null && (dataIndexInside = currDataIndexInside);
     var itemStyle = getItemStyleModel(dataIndexInside, EMPHASIS).getItemStyle();
     var labelModel = getLabelModel(dataIndexInside, EMPHASIS);
@@ -59166,9 +58167,6 @@ function createOrUpdateItem(api, existsEl, dataIndex, elOption, seriesModel, gro
 }
 __name(createOrUpdateItem, "createOrUpdateItem");
 function doCreateOrUpdateEl(api, existsEl, dataIndex, elOption, seriesModel, group) {
-  if (process.env.NODE_ENV !== "production") {
-    assert(elOption, "should not have an null/undefined element setting");
-  }
   var toBeReplacedIdx = -1;
   var oldEl = existsEl;
   if (existsEl && doesElNeedRecreate(existsEl, elOption, seriesModel)) {
@@ -59241,9 +58239,6 @@ function doCreateOrUpdateClipPath(el, dataIndex, elOption, seriesModel, isInit) 
     }
     if (!clipPath) {
       clipPath = createEl$1(clipPathOpt);
-      if (process.env.NODE_ENV !== "production") {
-        assert(isPath(clipPath), "Only any type of `path` can be used in `clipPath`, rather than " + clipPath.type + ".");
-      }
       el.setClipPath(clipPath);
     }
     updateElNormal(null, clipPath, dataIndex, clipPathOpt, null, seriesModel, isInit);
@@ -59310,9 +58305,6 @@ function processTxInfo(elOption, state, attachedTxInfo) {
   if (!state && txConOpt) {
     var txConOptNormal_1 = txConOpt;
     !txConOptNormal_1.type && (txConOptNormal_1.type = "text");
-    if (process.env.NODE_ENV !== "production") {
-      assert(txConOptNormal_1.type === "text", 'textContent.type must be "text"');
-    }
   }
   var info = !state ? attachedTxInfo.normal : attachedTxInfo[state];
   info.cfg = txCfg;
@@ -59362,9 +58354,6 @@ function mergeChildren(api, el, dataIndex, elOption, seriesModel) {
       }
       doCreateOrUpdateEl(api, oldChild, dataIndex, newChild, seriesModel, el);
     } else {
-      if (process.env.NODE_ENV !== "production") {
-        assert(oldChild, "renderItem should not return a group containing elements as null/undefined/{} if they do not exist before.");
-      }
       oldChild.ignore = true;
     }
   }
@@ -60956,11 +59945,6 @@ var polarCreator = {
     ecModel.eachSeries(function(seriesModel) {
       if (seriesModel.get("coordinateSystem") === "polar") {
         var polarModel = seriesModel.getReferringComponents("polar", SINGLE_REFERRING).models[0];
-        if (process.env.NODE_ENV !== "production") {
-          if (!polarModel) {
-            throw new Error('Polar "' + retrieve(seriesModel.get("polarIndex"), seriesModel.get("polarId"), 0) + '" not found');
-          }
-        }
         seriesModel.coordinateSystem = polarModel.coordinateSystem;
       }
     });
@@ -62571,7 +61555,7 @@ var Calendar = (
       this.getDimensionsInfo = Calendar2.getDimensionsInfo;
       this._model = calendarModel;
     }
-    __name(Calendar2, "Calendar");
+    __name(Calendar2, "Calendar2");
     Calendar2.getDimensionsInfo = function() {
       return [{
         name: "time",
@@ -62741,9 +61725,6 @@ var Calendar = (
         normalizedRange = range;
       }
       if (!normalizedRange) {
-        if (process.env.NODE_ENV !== "production") {
-          logError("Invalid date range.");
-        }
         return range;
       }
       var tmp = this._getRangeInfo(normalizedRange);
@@ -62857,10 +61838,6 @@ function mergeNewElOptionToExist(existList, index, newElOption) {
   var $action = newElOption.$action || "merge";
   if ($action === "merge") {
     if (existElOption) {
-      if (process.env.NODE_ENV !== "production") {
-        var newType = newElOption.type;
-        assert(!newType || existElOption.type === newType, 'Please set $action: "replace" to change `type`');
-      }
       merge(existElOption, newElOptCopy, true);
       mergeLayoutParam(existElOption, newElOptCopy, {
         ignoreSize: true
@@ -62931,7 +61908,7 @@ var GraphicComponentModel = (
       _this.preventAutoZ = true;
       return _this;
     }
-    __name(GraphicComponentModel2, "GraphicComponentModel");
+    __name(GraphicComponentModel2, "GraphicComponentModel2");
     GraphicComponentModel2.prototype.mergeOption = function(option, ecModel) {
       var elements = this.option.elements;
       this.option.elements = null;
@@ -62948,9 +61925,6 @@ var GraphicComponentModel = (
       var elOptionsToUpdate = this._elOptionsToUpdate = [];
       each$f(mappingResult, function(resultItem, index) {
         var newElOption = resultItem.newOption;
-        if (process.env.NODE_ENV !== "production") {
-          assert(isObject$3(newElOption) || resultItem.existing, "Empty graphic option definition");
-        }
         if (!newElOption) {
           return;
         }
@@ -63012,7 +61986,7 @@ var GraphicComponentView = (
       _this.type = GraphicComponentView2.type;
       return _this;
     }
-    __name(GraphicComponentView2, "GraphicComponentView");
+    __name(GraphicComponentView2, "GraphicComponentView2");
     GraphicComponentView2.prototype.init = function() {
       this._elMap = createHashMap();
     };
@@ -63057,9 +62031,6 @@ var GraphicComponentView = (
           }
         }
         var elOptionCleaned = getCleanedElOption(elOption);
-        if (process.env.NODE_ENV !== "production") {
-          elExisting && assert(targetElParent === elExisting.parent, "Changing parent is not supported.");
-        }
         var $action = elOption.$action || "merge";
         var isMerge = $action === "merge";
         var isReplace = $action === "replace";
@@ -63210,13 +62181,7 @@ var GraphicComponentView = (
   }(ComponentView)
 );
 function newEl(graphicType) {
-  if (process.env.NODE_ENV !== "production") {
-    assert(graphicType, "graphic type MUST be set");
-  }
   var Clz = hasOwn(nonShapeGraphicElements, graphicType) ? nonShapeGraphicElements[graphicType] : getShapeClass(graphicType);
-  if (process.env.NODE_ENV !== "production") {
-    assert(Clz, "graphic type " + graphicType + " can not be found");
-  }
   var el = new Clz({});
   inner$7(el).type = graphicType;
   return el;
@@ -63325,9 +62290,6 @@ function isCoordSupported(seriesModel) {
 }
 __name(isCoordSupported, "isCoordSupported");
 function getAxisMainType(axisDim) {
-  if (process.env.NODE_ENV !== "production") {
-    assert(axisDim);
-  }
   return axisDim + "Axis";
 }
 __name(getAxisMainType, "getAxisMainType");
@@ -63418,7 +62380,7 @@ var DataZoomAxisInfo = (
       this.indexList = [];
       this.indexMap = [];
     }
-    __name(DataZoomAxisInfo2, "DataZoomAxisInfo");
+    __name(DataZoomAxisInfo2, "DataZoomAxisInfo2");
     DataZoomAxisInfo2.prototype.add = function(axisCmptIdx) {
       if (!this.indexMap[axisCmptIdx]) {
         this.indexList.push(axisCmptIdx);
@@ -63440,7 +62402,7 @@ var DataZoomModel = (
       _this._rangePropMode = ["percent", "percent"];
       return _this;
     }
-    __name(DataZoomModel2, "DataZoomModel");
+    __name(DataZoomModel2, "DataZoomModel2");
     DataZoomModel2.prototype.init = function(option, parentModel, ecModel) {
       var inputRawOption = retrieveRawOption(option);
       this.settledOption = inputRawOption;
@@ -63615,9 +62577,6 @@ var DataZoomModel = (
       }
     };
     DataZoomModel2.prototype.getAxisModel = function(axisDim, axisIndex) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(axisDim && axisIndex != null);
-      }
       var axisInfo = this._targetAxisInfoMap.get(axisDim);
       if (axisInfo && axisInfo.indexMap[axisIndex]) {
         return this.ecModel.getComponent(getAxisMainType(axisDim), axisIndex);
@@ -63681,9 +62640,6 @@ var DataZoomModel = (
       return this._rangePropMode.slice();
     };
     DataZoomModel2.prototype.getOrient = function() {
-      if (process.env.NODE_ENV !== "production") {
-        assert(this._orient);
-      }
       return this._orient;
     };
     DataZoomModel2.type = "dataZoom";
@@ -64821,7 +63777,7 @@ var DataView = (
     function DataView2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
-    __name(DataView2, "DataView");
+    __name(DataView2, "DataView2");
     DataView2.prototype.onclick = function(ecModel, api) {
       setTimeout(function() {
         api.dispatchAction({
@@ -64881,9 +63837,6 @@ var DataView = (
       addEventListener(closeButton, "click", close);
       addEventListener(refreshButton, "click", function() {
         if (contentToOption == null && optionToContent != null || contentToOption != null && optionToContent == null) {
-          if (process.env.NODE_ENV !== "production") {
-            warn("It seems you have just provided one of `contentToOption` and `optionToContent` functions but missed the other one. Data change is ignored.");
-          }
           close();
           return;
         }
@@ -65103,7 +64056,7 @@ var BrushTargetManager = (
         }
       });
     }
-    __name(BrushTargetManager2, "BrushTargetManager");
+    __name(BrushTargetManager2, "BrushTargetManager2");
     BrushTargetManager2.prototype.setOutputRanges = function(areas, ecModel) {
       this.matchOutputRanges(areas, ecModel, function(area, coordRange, coordSys) {
         (area.coordRanges || (area.coordRanges = [])).push(coordRange);
@@ -65132,10 +64085,6 @@ var BrushTargetManager = (
     BrushTargetManager2.prototype.setInputRanges = function(areas, ecModel) {
       each$f(areas, function(area) {
         var targetInfo = this.findTargetInfo(area, ecModel);
-        if (process.env.NODE_ENV !== "production") {
-          assert(!targetInfo || targetInfo === true || area.coordRange, "coordRange must be specified when coord index specified.");
-          assert(!targetInfo || targetInfo !== true || area.range, "range must be specified in global brush.");
-        }
         area.range = area.range || [];
         if (targetInfo && targetInfo !== true) {
           area.panelId = targetInfo.panelId;
@@ -65312,9 +64261,6 @@ var coordConvert = {
   }, "polygon")
 };
 function axisConvert(axisNameIndex, to, coordSys, rangeOrCoordRange) {
-  if (process.env.NODE_ENV !== "production") {
-    assert(coordSys.type === "cartesian2d", "lineX/lineY brush is available only in cartesian2d.");
-  }
   var axis = coordSys.getAxis(["x", "y"][axisNameIndex]);
   var values = formatMinMax(map$1([0, 1], function(i2) {
     return to ? axis.coordToData(axis.toLocalCoord(rangeOrCoordRange[i2]), true) : axis.toGlobalCoord(axis.dataToCoord(rangeOrCoordRange[i2]));
@@ -65991,7 +64937,7 @@ var TooltipRichContent = (
       this._zr = api.getZr();
       makeStyleCoord(this._styleCoord, this._zr, api.getWidth() / 2, api.getHeight() / 2);
     }
-    __name(TooltipRichContent2, "TooltipRichContent");
+    __name(TooltipRichContent2, "TooltipRichContent2");
     TooltipRichContent2.prototype.update = function(tooltipModel) {
       var alwaysShowContent = tooltipModel.get("alwaysShowContent");
       alwaysShowContent && this._moveIfResized();
@@ -66007,7 +64953,7 @@ var TooltipRichContent = (
     TooltipRichContent2.prototype.setContent = function(content, markupStyleCreator, tooltipModel, borderColor, arrowPosition) {
       var _this = this;
       if (isObject$3(content)) {
-        throwError(process.env.NODE_ENV !== "production" ? "Passing DOM nodes as content is not supported in richText tooltip!" : "");
+        throwError("");
       }
       if (this.el) {
         this._zr.remove(this.el);
@@ -67318,7 +66264,7 @@ var BrushModel = (
       _this.brushOption = {};
       return _this;
     }
-    __name(BrushModel2, "BrushModel");
+    __name(BrushModel2, "BrushModel2");
     BrushModel2.prototype.optionUpdated = function(newOption, isInit) {
       var thisOption = this.option;
       !isInit && replaceVisualOption(thisOption, newOption, ["inBrush", "outOfBrush"]);
@@ -67331,12 +66277,6 @@ var BrushModel = (
       }
     };
     BrushModel2.prototype.setAreas = function(areas) {
-      if (process.env.NODE_ENV !== "production") {
-        assert(isArray$1(areas));
-        each$f(areas, function(area) {
-          assert(area.brushType, "Illegal areas");
-        });
-      }
       if (!areas) {
         return;
       }
@@ -68632,13 +67572,8 @@ var MarkerModel = (
       _this.createdBySelf = false;
       return _this;
     }
-    __name(MarkerModel2, "MarkerModel");
+    __name(MarkerModel2, "MarkerModel2");
     MarkerModel2.prototype.init = function(option, parentModel, ecModel) {
-      if (process.env.NODE_ENV !== "production") {
-        if (this.type === "marker") {
-          throw new Error("Marker component is abstract component. Use markLine, markPoint, markArea instead.");
-        }
-      }
       this.mergeDefaultAndTheme(option, ecModel);
       this._mergeOption(option, ecModel, false, true);
     };
@@ -69170,9 +68105,6 @@ var markLineTransform = /* @__PURE__ */ __name(function(seriesModel, coordSys, m
         value
       }];
     } else {
-      if (process.env.NODE_ENV !== "production") {
-        logError("Invalid markLine data.");
-      }
       itemArray = [];
     }
   } else {
@@ -69251,7 +68183,7 @@ var MarkLineView = (
       _this.type = MarkLineView2.type;
       return _this;
     }
-    __name(MarkLineView2, "MarkLineView");
+    __name(MarkLineView2, "MarkLineView2");
     MarkLineView2.prototype.updateTransform = function(markLineModel, ecModel, api) {
       ecModel.eachSeries(function(seriesModel) {
         var mlModel = MarkerModel.getMarkerModelFromSeries(seriesModel, "markLine");
@@ -70008,7 +68940,7 @@ var LegendView = (
       _this.newlineDisabled = false;
       return _this;
     }
-    __name(LegendView2, "LegendView");
+    __name(LegendView2, "LegendView2");
     LegendView2.prototype.init = function() {
       this.group.add(this._contentGroup = new Group$1());
       this.group.add(this._selectorGroup = new Group$1());
@@ -70129,11 +69061,6 @@ var LegendView = (
               legendDrawnMap.set(name, true);
             }
           }, this);
-        }
-        if (process.env.NODE_ENV !== "production") {
-          if (!legendDrawnMap.get(name)) {
-            console.warn(name + " series not exists. Legend data should be same with series name or data name.");
-          }
         }
       }, this);
       if (selector2) {
@@ -71316,7 +70243,7 @@ var SliderZoomView = (
       _this._displayables = {};
       return _this;
     }
-    __name(SliderZoomView2, "SliderZoomView");
+    __name(SliderZoomView2, "SliderZoomView2");
     SliderZoomView2.prototype.init = function(ecModel, api) {
       this.api = api;
       this._onBrush = bind$1(this._onBrush, this);
@@ -71640,9 +70567,6 @@ var SliderZoomView = (
         var iconStr = dataZoomModel.get("handleIcon");
         if (!symbolBuildProxies[iconStr] && iconStr.indexOf("path://") < 0 && iconStr.indexOf("image://") < 0) {
           iconStr = "path://" + iconStr;
-          if (process.env.NODE_ENV !== "production") {
-            deprecateLog("handleIcon now needs 'path://' prefix when using a path string");
-          }
         }
         var path = createSymbol$1(iconStr, -1, 0, 2, 2, null, true);
         path.attr({
@@ -73137,8 +72061,8 @@ var ContinuousView = (
       zr.off("mouseover", this._hoverLinkFromSeriesMouseOver);
       zr.off("mouseout", this._hideIndicator);
     };
-    ContinuousView2.prototype._applyTransform = function(vertex, element, inverse, global2) {
-      var transform2 = getTransform$1(element, global2 ? null : this.group);
+    ContinuousView2.prototype._applyTransform = function(vertex, element, inverse, global) {
+      var transform2 = getTransform$1(element, global ? null : this.group);
       return isArray$1(vertex) ? applyTransform(vertex, transform2, inverse) : transformDirection(vertex, transform2, inverse);
     };
     ContinuousView2.prototype._dispatchHighDown = function(type, batch) {
@@ -73329,7 +72253,7 @@ var PiecewiseModel = (
       _this._pieceList = [];
       return _this;
     }
-    __name(PiecewiseModel2, "PiecewiseModel");
+    __name(PiecewiseModel2, "PiecewiseModel2");
     PiecewiseModel2.prototype.optionUpdated = function(newOption, isInit) {
       _super.prototype.optionUpdated.apply(this, arguments);
       this.resetExtent();
@@ -73618,11 +72542,6 @@ var resetMethods = {
         }
         useMinMax[0] && interval[1] === Infinity && (close_1[0] = 0);
         useMinMax[1] && interval[0] === -Infinity && (close_1[1] = 0);
-        if (process.env.NODE_ENV !== "production") {
-          if (interval[0] > interval[1]) {
-            console.warn("Piece " + index + "is illegal: " + interval + " lower bound should not greater then uppper bound.");
-          }
-        }
         if (interval[0] === interval[1] && close_1[0] && close_1[1]) {
           item.value = interval[0];
         }
@@ -74057,13 +72976,10 @@ var RegExpEvaluator = (
       var condValue = this._condVal = isString(rVal) ? new RegExp(rVal) : isRegExp(rVal) ? rVal : null;
       if (condValue == null) {
         var errMsg = "";
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = makePrintable("Illegal regexp", rVal, "in");
-        }
         throwError(errMsg);
       }
     }
-    __name(RegExpEvaluator2, "RegExpEvaluator");
+    __name(RegExpEvaluator2, "RegExpEvaluator2");
     RegExpEvaluator2.prototype.evaluate = function(lVal) {
       var type = typeof lVal;
       return isString(type) ? this._condVal.test(lVal) : isNumber(type) ? this._condVal.test(lVal + "") : false;
@@ -74076,7 +72992,7 @@ var ConstConditionInternal = (
   function() {
     function ConstConditionInternal2() {
     }
-    __name(ConstConditionInternal2, "ConstConditionInternal");
+    __name(ConstConditionInternal2, "ConstConditionInternal2");
     ConstConditionInternal2.prototype.evaluate = function() {
       return this.value;
     };
@@ -74088,7 +73004,7 @@ var AndConditionInternal = (
   function() {
     function AndConditionInternal2() {
     }
-    __name(AndConditionInternal2, "AndConditionInternal");
+    __name(AndConditionInternal2, "AndConditionInternal2");
     AndConditionInternal2.prototype.evaluate = function() {
       var children = this.children;
       for (var i2 = 0; i2 < children.length; i2++) {
@@ -74106,7 +73022,7 @@ var OrConditionInternal = (
   function() {
     function OrConditionInternal2() {
     }
-    __name(OrConditionInternal2, "OrConditionInternal");
+    __name(OrConditionInternal2, "OrConditionInternal2");
     OrConditionInternal2.prototype.evaluate = function() {
       var children = this.children;
       for (var i2 = 0; i2 < children.length; i2++) {
@@ -74124,7 +73040,7 @@ var NotConditionInternal = (
   function() {
     function NotConditionInternal2() {
     }
-    __name(NotConditionInternal2, "NotConditionInternal");
+    __name(NotConditionInternal2, "NotConditionInternal2");
     NotConditionInternal2.prototype.evaluate = function() {
       return !this.child.evaluate();
     };
@@ -74136,7 +73052,7 @@ var RelationalConditionInternal = (
   function() {
     function RelationalConditionInternal2() {
     }
-    __name(RelationalConditionInternal2, "RelationalConditionInternal");
+    __name(RelationalConditionInternal2, "RelationalConditionInternal2");
     RelationalConditionInternal2.prototype.evaluate = function() {
       var needParse = !!this.valueParser;
       var getValue = this.getValue;
@@ -74160,9 +73076,6 @@ function parseOption(exprOption, getters) {
   }
   var errMsg = "";
   if (!isObjectNotArray(exprOption)) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = makePrintable("Illegal config. Expect a plain object but actually", exprOption);
-    }
     throwError(errMsg);
   }
   if (exprOption.and) {
@@ -74178,9 +73091,6 @@ __name(parseOption, "parseOption");
 function parseAndOrOption(op, exprOption, getters) {
   var subOptionArr = exprOption[op];
   var errMsg = "";
-  if (process.env.NODE_ENV !== "production") {
-    errMsg = makePrintable('"and"/"or" condition should only be `' + op + ": [...]` and must not be empty array.", "Illegal condition:", exprOption);
-  }
   if (!isArray$1(subOptionArr)) {
     throwError(errMsg);
   }
@@ -74200,9 +73110,6 @@ __name(parseAndOrOption, "parseAndOrOption");
 function parseNotOption(exprOption, getters) {
   var subOption = exprOption.not;
   var errMsg = "";
-  if (process.env.NODE_ENV !== "production") {
-    errMsg = makePrintable('"not" condition should only be `not: {}`.', "Illegal condition:", exprOption);
-  }
   if (!isObjectNotArray(subOption)) {
     throwError(errMsg);
   }
@@ -74231,17 +73138,11 @@ function parseRelationalOption(exprOption, getters) {
     var condValueParsed = valueParser ? valueParser(condValueRaw) : condValueRaw;
     var evaluator = createFilterComparator(op, condValueParsed) || op === "reg" && new RegExpEvaluator(condValueParsed);
     if (!evaluator) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = makePrintable('Illegal relational operation: "' + keyRaw + '" in condition:', exprOption);
-      }
       throwError(errMsg);
     }
     subCondList.push(evaluator);
   }
   if (!subCondList.length) {
-    if (process.env.NODE_ENV !== "production") {
-      errMsg = makePrintable("Relational condition must have at least one operator.", "Illegal condition:", exprOption);
-    }
     throwError(errMsg);
   }
   var cond = new RelationalConditionInternal();
@@ -74262,7 +73163,7 @@ var ConditionalExpressionParsed = (
     function ConditionalExpressionParsed2(exprOption, getters) {
       this._cond = parseOption(exprOption, getters);
     }
-    __name(ConditionalExpressionParsed2, "ConditionalExpressionParsed");
+    __name(ConditionalExpressionParsed2, "ConditionalExpressionParsed2");
     ConditionalExpressionParsed2.prototype.evaluate = function() {
       return this._cond.evaluate();
     };
@@ -74287,16 +73188,10 @@ var filterTransform = {
         var errMsg = "";
         var dimLoose = exprOption.dimension;
         if (!hasOwn(exprOption, "dimension")) {
-          if (process.env.NODE_ENV !== "production") {
-            errMsg = makePrintable('Relation condition must has prop "dimension" specified.', "Illegal condition:", exprOption);
-          }
           throwError(errMsg);
         }
         var dimInfo = upstream.getDimensionInfo(dimLoose);
         if (!dimInfo) {
-          if (process.env.NODE_ENV !== "production") {
-            errMsg = makePrintable("Can not find dimension info via: " + dimLoose + ".\n", "Existing dimensions: ", upstream.cloneAllDimensionInfo(), ".\n", "Illegal condition:", exprOption, ".\n");
-          }
           throwError(errMsg);
         }
         return {
@@ -74319,10 +73214,6 @@ var filterTransform = {
     };
   }, "transform")
 };
-var sampleLog = "";
-if (process.env.NODE_ENV !== "production") {
-  sampleLog = ["Valid config is like:", '{ dimension: "age", order: "asc" }', 'or [{ dimension: "age", order: "asc"], { dimension: "date", order: "desc" }]'].join(" ");
-}
 var sortTransform = {
   type: "echarts:sort",
   transform: /* @__PURE__ */ __name(function(params) {
@@ -74331,9 +73222,6 @@ var sortTransform = {
     var errMsg = "";
     var orderExprList = normalizeToArray(config);
     if (!orderExprList.length) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = "Empty `config` in sort transform.";
-      }
       throwError(errMsg);
     }
     var orderDefList = [];
@@ -74343,43 +73231,25 @@ var sortTransform = {
       var parserName = orderExpr.parser;
       var incomparable = orderExpr.incomparable;
       if (dimLoose == null) {
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = 'Sort transform config must has "dimension" specified.' + sampleLog;
-        }
         throwError(errMsg);
       }
       if (order !== "asc" && order !== "desc") {
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = 'Sort transform config must has "order" specified.' + sampleLog;
-        }
         throwError(errMsg);
       }
       if (incomparable && incomparable !== "min" && incomparable !== "max") {
         var errMsg_1 = "";
-        if (process.env.NODE_ENV !== "production") {
-          errMsg_1 = 'incomparable must be "min" or "max" rather than "' + incomparable + '".';
-        }
         throwError(errMsg_1);
       }
       if (order !== "asc" && order !== "desc") {
         var errMsg_2 = "";
-        if (process.env.NODE_ENV !== "production") {
-          errMsg_2 = 'order must be "asc" or "desc" rather than "' + order + '".';
-        }
         throwError(errMsg_2);
       }
       var dimInfo = upstream.getDimensionInfo(dimLoose);
       if (!dimInfo) {
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = makePrintable("Can not find dimension info via: " + dimLoose + ".\n", "Existing dimensions: ", upstream.cloneAllDimensionInfo(), ".\n", "Illegal config:", orderExpr, ".\n");
-        }
         throwError(errMsg);
       }
       var parser = parserName ? getRawValueParser(parserName) : null;
       if (parserName && !parser) {
-        if (process.env.NODE_ENV !== "production") {
-          errMsg = makePrintable("Invalid parser name " + parserName + ".\n", "Illegal config:", orderExpr, ".\n");
-        }
         throwError(errMsg);
       }
       orderDefList.push({
@@ -74390,9 +73260,6 @@ var sortTransform = {
     });
     var sourceFormat = upstream.sourceFormat;
     if (sourceFormat !== SOURCE_FORMAT_ARRAY_ROWS && sourceFormat !== SOURCE_FORMAT_OBJECT_ROWS) {
-      if (process.env.NODE_ENV !== "production") {
-        errMsg = 'sourceFormat "' + sourceFormat + '" is not supported yet';
-      }
       throwError(errMsg);
     }
     var resultData = [];
@@ -74400,8 +73267,8 @@ var sortTransform = {
       resultData.push(upstream.getRawDataItem(i2));
     }
     resultData.sort(function(item0, item1) {
-      for (var i3 = 0; i3 < orderDefList.length; i3++) {
-        var orderDef = orderDefList[i3];
+      for (var i22 = 0; i22 < orderDefList.length; i22++) {
+        var orderDef = orderDefList[i22];
         var val0 = upstream.retrieveValueFromItem(item0, orderDef.dimIdx);
         var val1 = upstream.retrieveValueFromItem(item1, orderDef.dimIdx);
         if (orderDef.parser) {
@@ -75788,9 +74655,6 @@ function flattenDataDiffItems(list) {
     var data = seriesInfo.data;
     var dataGroupId = seriesInfo.dataGroupId;
     if (data.count() > DATA_COUNT_THRESHOLD) {
-      if (process.env.NODE_ENV !== "production") {
-        warn("Universal transition is disabled on large data > 10k.");
-      }
       return;
     }
     var indices = data.getIndices();
@@ -76086,12 +74950,6 @@ function findTransitionSeriesBatches(globalStore, params) {
       });
     }
   });
-  function checkTransitionSeriesKeyDuplicated(transitionKeyStr) {
-    if (updateBatches.get(transitionKeyStr)) {
-      warn("Duplicated seriesKey in universalTransition " + transitionKeyStr);
-    }
-  }
-  __name(checkTransitionSeriesKeyDuplicated, "checkTransitionSeriesKeyDuplicated");
   each$f(params.updatedSeries, function(series) {
     if (series.isUniversalTransitionEnabled() && series.isAnimationEnabled()) {
       var newDataGroupId = series.get("dataGroupId");
@@ -76100,9 +74958,6 @@ function findTransitionSeriesBatches(globalStore, params) {
       var transitionKeyStr = convertArraySeriesKeyToString(transitionKey);
       var oldData = oldDataMap.get(transitionKeyStr);
       if (oldData) {
-        if (process.env.NODE_ENV !== "production") {
-          checkTransitionSeriesKeyDuplicated(transitionKeyStr);
-        }
         updateBatches.set(transitionKeyStr, {
           oldSeries: [{
             dataGroupId: oldData.dataGroupId,
@@ -76117,9 +74972,6 @@ function findTransitionSeriesBatches(globalStore, params) {
         });
       } else {
         if (isArray$1(transitionKey)) {
-          if (process.env.NODE_ENV !== "production") {
-            checkTransitionSeriesKeyDuplicated(transitionKeyStr);
-          }
           var oldSeries_1 = [];
           each$f(transitionKey, function(key) {
             var oldData2 = oldDataMap.get(key);
