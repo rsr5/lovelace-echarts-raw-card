@@ -503,7 +503,7 @@ export class EchartsRawCard extends LitElement {
   // prevent hass-driven re-fetch storms
   private _nextHistoryAllowedMs = 0;
 
-  // ✅ NEW: track current ECharts theme ("dark" | undefined)
+  // track current ECharts theme ("dark" | undefined)
   private _echartsTheme: string | undefined;
 
   public setConfig(config: LovelaceCardConfig): void {
@@ -520,7 +520,7 @@ export class EchartsRawCard extends LitElement {
     // reset throttle on config change
     this._nextHistoryAllowedMs = 0;
 
-    // ✅ NEW: ensure theme is re-evaluated after config changes
+    // ensure theme is re-evaluated after config changes
     this._echartsTheme = undefined;
   }
 
@@ -528,12 +528,18 @@ export class EchartsRawCard extends LitElement {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
-    this._chart?.dispose();
+
+    try {
+      this._chart?.dispose();
+    } catch {
+      // ignore
+    }
     this._chart = undefined;
+
     this._runId++;
   }
 
-  // ✅ NEW: HA dark-mode helpers
+  // HA dark-mode helpers
   private _isHassDarkMode(hass: HomeAssistant | undefined): boolean {
     return Boolean(hass?.themes?.darkMode);
   }
@@ -543,9 +549,56 @@ export class EchartsRawCard extends LitElement {
     return this._isHassDarkMode(hass) ? "dark" : undefined;
   }
 
-  private _recreateChartForTheme(): void {
-    const el = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+  // ---- NEW: size-safe init helpers ---------------------------------
+
+  private _getContainer(): HTMLDivElement | null {
+    return this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+  }
+
+  private _hasSize(el: HTMLElement): boolean {
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  }
+
+  private _ensureChart(): void {
+    const el = this._getContainer();
     if (!el) return;
+
+    // If element isn't laid out yet, wait for ResizeObserver
+    if (!this._hasSize(el)) return;
+
+    // If a chart instance is already bound to this DOM node, reuse it.
+    try {
+      const existing = echarts.getInstanceByDom(el);
+      if (existing) {
+        this._chart = existing as unknown as ECharts;
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Create a new instance
+    this._echartsTheme = this._desiredEchartsTheme(this.hass);
+    this._chart = echarts.init(el, this._echartsTheme, {
+      renderer: this._config?.renderer ?? "canvas"
+    });
+  }
+
+  private _recreateChartForTheme(): void {
+    const el = this._getContainer();
+    if (!el) return;
+
+    // If not laid out, drop chart; observer will recreate later when size returns.
+    if (!this._hasSize(el)) {
+      try {
+        this._chart?.dispose();
+      } catch {
+        // ignore
+      }
+      this._chart = undefined;
+      this._echartsTheme = this._desiredEchartsTheme(this.hass);
+      return;
+    }
 
     // Dispose old instance
     try {
@@ -555,42 +608,68 @@ export class EchartsRawCard extends LitElement {
     }
     this._chart = undefined;
 
-    // Rebind resize observer cleanly
-    this._resizeObserver?.disconnect();
-    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
-    this._resizeObserver.observe(el);
+    // Create new instance safely
+    this._ensureChart();
 
-    // Create new instance with current theme
-    this._echartsTheme = this._desiredEchartsTheme(this.hass);
-    this._chart = echarts.init(el, this._echartsTheme, {
-      renderer: this._config?.renderer ?? "canvas"
-    });
+    if (this._chart) {
+      try {
+        this._chart.resize();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   protected firstUpdated(): void {
-    const el = this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+    const el = this._getContainer();
     if (!el) return;
 
-    // ✅ initial theme based on current HA mode
-    this._echartsTheme = this._desiredEchartsTheme(this.hass);
-    this._chart = echarts.init(el, this._echartsTheme, { renderer: this._config?.renderer ?? "canvas" });
+    const onResize = () => {
+      // Ensure we have a chart once size exists
+      this._ensureChart();
 
-    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
+      // If we still don't have one (because size is 0), stop here
+      if (!this._chart) return;
+
+      // If size is 0, DO NOT call resize()
+      if (!this._hasSize(el)) return;
+
+      try {
+        this._chart.resize();
+      } catch {
+        // If resize throws, dispose and let next resize re-init cleanly
+        try {
+          this._chart?.dispose();
+        } catch {
+          // ignore
+        }
+        this._chart = undefined;
+      }
+    };
+
+    this._resizeObserver = new ResizeObserver(onResize);
     this._resizeObserver.observe(el);
 
-    this._applyOption();
+    // Try once now (may no-op if 0×0)
+    onResize();
+
+    // Only apply option when we actually have a chart
+    if (this._chart) this._applyOption();
   }
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has("_config")) {
       // If renderer changed, recreate chart too (init opts include renderer)
+      // Also, ensure chart exists (config can arrive before layout).
       if (this._chart) this._recreateChartForTheme();
+      else this._ensureChart();
+
       this._applyOption();
       return;
     }
 
     if (changed.has("hass")) {
-      // ✅ Detect HA theme (dark/light) switch and recreate ECharts instance
+      // Detect HA theme (dark/light) switch and recreate ECharts instance
       const nextTheme = this._desiredEchartsTheme(this.hass);
       if (nextTheme !== this._echartsTheme) {
         this._recreateChartForTheme();
@@ -598,7 +677,7 @@ export class EchartsRawCard extends LitElement {
         return;
       }
 
-      // ✅ FIX 1: While a $history option is currently loading, don't restart due to hass churn.
+      // While a $history option is currently loading, don't restart due to hass churn.
       if (this._loading && this._config?.option && containsHistoryToken(this._config.option)) {
         return;
       }
@@ -663,7 +742,7 @@ export class EchartsRawCard extends LitElement {
 
     const now = Date.now();
 
-    // ✅ FIX 3: bucket endMs when end is implicit so cache keys & HA params are stable inside cache_seconds
+    // bucket endMs when end is implicit so cache keys & HA params are stable inside cache_seconds
     const cacheSeconds = spec.cache_seconds ?? 30;
     let endMs = parseTime(spec.end, now);
     if (spec.end == null) {
@@ -692,7 +771,7 @@ export class EchartsRawCard extends LitElement {
     // default OFF (your own testing: commenting it fixed the chart)
     if (spec.minimal_response) params.set("minimal_response", "1");
 
-    // ✅ IMPORTANT:
+    // IMPORTANT:
     // HA history frequently ignores repeated filter_entity_id params (keeps only the first).
     // Use a single comma-separated filter_entity_id to reliably fetch multiple entities.
     params.set("filter_entity_id", entityIds.join(","));
@@ -726,7 +805,7 @@ export class EchartsRawCard extends LitElement {
     const perEntity: Record<string, Array<[number, number]>> = {};
     for (const id of entityIds) perEntity[id] = [];
 
-    // IMPORTANT: HA history often returns "compressed" arrays:
+    // HA history often returns "compressed" arrays:
     // - arr[0] has entity_id + attributes + timestamps
     // - subsequent items omit entity_id and attributes, but include state + last_changed
     for (const arr of hist ?? []) {
@@ -772,7 +851,7 @@ export class EchartsRawCard extends LitElement {
     } else {
       const series = entityIds.map((id) => {
         const displayName = idToName.get(id) ?? id;
-        const base = {
+        const base: Record<string, any> = {
           name: displayName,
           type: seriesType,
           showSymbol,
@@ -806,17 +885,24 @@ export class EchartsRawCard extends LitElement {
   }
 
   private async _applyOptionAsync(): Promise<void> {
-    const chart = this._chart;
     const hass = this.hass;
     const config = this._config;
 
-    if (!config?.option || !chart) return;
+    if (!config?.option) return;
+
+    // If container isn't laid out yet, wait for ResizeObserver to call again.
+    const el = this._getContainer();
+    if (!el || !this._hasSize(el)) return;
+
+    // Ensure we have a valid chart instance
+    this._ensureChart();
+    if (!this._chart) return;
 
     const runId = ++this._runId;
 
     const needsHistory = containsHistoryToken(config.option);
 
-    // ✅ FIX 2: optimistic throttle BEFORE awaiting history fetch, so hass churn can't restart mid-flight
+    // optimistic throttle BEFORE awaiting history fetch, so hass churn can't restart mid-flight
     if (needsHistory) {
       const ttl = minHistoryCacheSecondsInOptionTree(config.option, 30) * 1000;
       this._nextHistoryAllowedMs = Date.now() + ttl;
@@ -837,7 +923,10 @@ export class EchartsRawCard extends LitElement {
 
       // cancelled/replaced
       if (runId !== this._runId) return;
-      if (this._chart !== chart) return;
+
+      // chart might have been recreated while we awaited history
+      this._ensureChart();
+      if (!this._chart) return;
 
       this._watchedEntities = watched;
 
@@ -849,18 +938,27 @@ export class EchartsRawCard extends LitElement {
 
       const opts: SetOptionOpts = { notMerge: true, lazyUpdate: true };
 
-      chart.setOption(option, opts);
+      this._chart.setOption(option, opts);
       this._snapshotFingerprints();
+
+      // Resize once after setting option (helps when HA lays out late)
+      try {
+        this._chart.resize();
+      } catch {
+        // ignore
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
 
-      // CRITICAL: clear the chart so ECharts doesn't keep asserting on resize/update
+      // DO NOT clear() here; it can wedge ECharts into a blank state during resize/layout churn.
+      // If you want a hard reset, dispose and let the ResizeObserver recreate it.
       try {
-        this._chart?.clear();
+        this._chart?.dispose();
       } catch {
         // ignore
       }
+      this._chart = undefined;
 
       // eslint-disable-next-line no-console
       console.error("[echarts-raw-card] applyOption error:", err);
