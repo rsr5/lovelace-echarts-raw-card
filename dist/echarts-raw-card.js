@@ -75430,45 +75430,95 @@ class EchartsRawCard extends i$1 {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
     this._resizeObserver = void 0;
-    this._chart?.dispose();
+    try {
+      this._chart?.dispose();
+    } catch {
+    }
     this._chart = void 0;
     this._runId++;
   }
-  // ✅ NEW: HA dark-mode helpers
+  // HA dark-mode helpers
   _isHassDarkMode(hass) {
     return Boolean(hass?.themes?.darkMode);
   }
   _desiredEchartsTheme(hass) {
     return this._isHassDarkMode(hass) ? "dark" : void 0;
   }
-  _recreateChartForTheme() {
-    const el = this.renderRoot.querySelector(".echarts-container");
+  // ---- NEW: size-safe init helpers ---------------------------------
+  _getContainer() {
+    return this.renderRoot.querySelector(".echarts-container");
+  }
+  _hasSize(el) {
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  }
+  _ensureChart() {
+    const el = this._getContainer();
     if (!el) return;
+    if (!this._hasSize(el)) return;
     try {
-      this._chart?.dispose();
+      const existing = getInstanceByDom(el);
+      if (existing) {
+        this._chart = existing;
+        return;
+      }
     } catch {
     }
-    this._chart = void 0;
-    this._resizeObserver?.disconnect();
-    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
-    this._resizeObserver.observe(el);
     this._echartsTheme = this._desiredEchartsTheme(this.hass);
     this._chart = init$1(el, this._echartsTheme, {
       renderer: this._config?.renderer ?? "canvas"
     });
   }
-  firstUpdated() {
-    const el = this.renderRoot.querySelector(".echarts-container");
+  _recreateChartForTheme() {
+    const el = this._getContainer();
     if (!el) return;
-    this._echartsTheme = this._desiredEchartsTheme(this.hass);
-    this._chart = init$1(el, this._echartsTheme, { renderer: this._config?.renderer ?? "canvas" });
-    this._resizeObserver = new ResizeObserver(() => this._chart?.resize());
+    if (!this._hasSize(el)) {
+      try {
+        this._chart?.dispose();
+      } catch {
+      }
+      this._chart = void 0;
+      this._echartsTheme = this._desiredEchartsTheme(this.hass);
+      return;
+    }
+    try {
+      this._chart?.dispose();
+    } catch {
+    }
+    this._chart = void 0;
+    this._ensureChart();
+    if (this._chart) {
+      try {
+        this._chart.resize();
+      } catch {
+      }
+    }
+  }
+  firstUpdated() {
+    const el = this._getContainer();
+    if (!el) return;
+    const onResize = /* @__PURE__ */ __name(() => {
+      this._ensureChart();
+      if (!this._chart) return;
+      if (!this._hasSize(el)) return;
+      try {
+        this._chart.resize();
+      } catch {
+        try {
+          this._chart?.dispose();
+        } catch {
+        }
+        this._chart = void 0;
+      }
+    }, "onResize");
+    this._resizeObserver = new ResizeObserver(onResize);
     this._resizeObserver.observe(el);
-    this._applyOption();
+    onResize();
+    if (this._chart) this._applyOption();
   }
   updated(changed) {
     if (changed.has("_config")) {
       if (this._chart) this._recreateChartForTheme();
+      else this._ensureChart();
       this._applyOption();
       return;
     }
@@ -75626,10 +75676,13 @@ class EchartsRawCard extends i$1 {
     void this._applyOptionAsync();
   }
   async _applyOptionAsync() {
-    const chart = this._chart;
     const hass = this.hass;
     const config = this._config;
-    if (!config?.option || !chart) return;
+    if (!config?.option) return;
+    const el = this._getContainer();
+    if (!el || !this._hasSize(el)) return;
+    this._ensureChart();
+    if (!this._chart) return;
     const runId = ++this._runId;
     const needsHistory = containsHistoryToken(config.option);
     if (needsHistory) {
@@ -75647,20 +75700,26 @@ class EchartsRawCard extends i$1 {
         async (spec) => this._fetchHistory(spec)
       );
       if (runId !== this._runId) return;
-      if (this._chart !== chart) return;
+      this._ensureChart();
+      if (!this._chart) return;
       this._watchedEntities = watched;
       const opt = resolved;
       const option = opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor") ? resolved : { backgroundColor: "transparent", ...resolved };
       const opts = { notMerge: true, lazyUpdate: true };
-      chart.setOption(option, opts);
+      this._chart.setOption(option, opts);
       this._snapshotFingerprints();
+      try {
+        this._chart.resize();
+      } catch {
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
       try {
-        this._chart?.clear();
+        this._chart?.dispose();
       } catch {
       }
+      this._chart = void 0;
       console.error("[echarts-raw-card] applyOption error:", err);
     } finally {
       if (runId === this._runId) {
