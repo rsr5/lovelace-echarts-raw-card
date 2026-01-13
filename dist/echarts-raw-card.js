@@ -75258,66 +75258,6 @@ function parseTime(t2, fallbackMs) {
   return Number.isFinite(ms) ? ms : fallbackMs;
 }
 __name(parseTime, "parseTime");
-function histEntityId(s2) {
-  return s2.entity_id ?? s2.e ?? s2.id;
-}
-__name(histEntityId, "histEntityId");
-function histState(s2) {
-  return s2.state ?? s2.s ?? s2.st;
-}
-__name(histState, "histState");
-function histAttributes(s2) {
-  const a2 = s2.attributes ?? s2.a ?? s2.attr;
-  return a2 && typeof a2 === "object" ? a2 : void 0;
-}
-__name(histAttributes, "histAttributes");
-function histTimestampMs(s2) {
-  const t2 = s2.last_changed ?? s2.last_updated ?? s2.lc ?? s2.lu ?? s2.c ?? s2.u ?? s2.ts ?? s2.t ?? s2.time_fired;
-  if (t2 == null) return void 0;
-  if (typeof t2 === "number") {
-    const ms2 = t2 < 1e12 ? t2 * 1e3 : t2;
-    return Number.isFinite(ms2) ? ms2 : void 0;
-  }
-  const ms = Date.parse(t2);
-  return Number.isFinite(ms) ? ms : void 0;
-}
-__name(histTimestampMs, "histTimestampMs");
-function downsample(points2, maxPoints, method) {
-  if (points2.length <= maxPoints || maxPoints <= 1) return points2;
-  const firstT = points2[0][0];
-  const lastT = points2[points2.length - 1][0];
-  const span = Math.max(1, lastT - firstT);
-  const bucketSize = span / maxPoints;
-  const buckets = Array.from({ length: maxPoints }, () => []);
-  for (const p2 of points2) {
-    const idx = Math.min(maxPoints - 1, Math.floor((p2[0] - firstT) / bucketSize));
-    buckets[idx].push(p2);
-  }
-  const out2 = [];
-  for (const b2 of buckets) {
-    if (b2.length === 0) continue;
-    const t2 = b2[b2.length - 1][0];
-    if (method === "last") {
-      out2.push([t2, b2[b2.length - 1][1]]);
-      continue;
-    }
-    let sum2 = 0;
-    let count2 = 0;
-    for (const [, v4] of b2) {
-      const n3 = Number(v4);
-      if (Number.isFinite(n3)) {
-        sum2 += n3;
-        count2 += 1;
-      }
-    }
-    out2.push([t2, count2 ? sum2 / count2 : b2[b2.length - 1][1]]);
-  }
-  const last = points2[points2.length - 1];
-  const outLast = out2[out2.length - 1];
-  if (outLast && outLast[0] !== last[0]) out2.push(last);
-  return out2;
-}
-__name(downsample, "downsample");
 async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
   if (!input) return input;
   if (isHistoryGenerator(input)) {
@@ -75383,6 +75323,66 @@ async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
   return input;
 }
 __name(deepResolveTokensAsync, "deepResolveTokensAsync");
+function histEntityId(s2) {
+  return s2.entity_id ?? s2.e ?? s2.id;
+}
+__name(histEntityId, "histEntityId");
+function histState(s2) {
+  return s2.state ?? s2.s ?? s2.st;
+}
+__name(histState, "histState");
+function histAttributes(s2) {
+  const a2 = s2.attributes ?? s2.a ?? s2.attr;
+  return a2 && typeof a2 === "object" ? a2 : void 0;
+}
+__name(histAttributes, "histAttributes");
+function histTimestampMs(s2) {
+  const t2 = s2.last_changed ?? s2.last_updated ?? s2.lc ?? s2.lu ?? s2.c ?? s2.u ?? s2.ts ?? s2.t ?? s2.time_fired;
+  if (t2 == null) return void 0;
+  if (typeof t2 === "number") {
+    const ms2 = t2 < 1e12 ? t2 * 1e3 : t2;
+    return Number.isFinite(ms2) ? ms2 : void 0;
+  }
+  const ms = Date.parse(t2);
+  return Number.isFinite(ms) ? ms : void 0;
+}
+__name(histTimestampMs, "histTimestampMs");
+function downsample(points2, maxPoints, method) {
+  if (points2.length <= maxPoints || maxPoints <= 1) return points2;
+  const firstT = points2[0][0];
+  const lastT = points2[points2.length - 1][0];
+  const span = Math.max(1, lastT - firstT);
+  const bucketSize = span / maxPoints;
+  const buckets = Array.from({ length: maxPoints }, () => []);
+  for (const p2 of points2) {
+    const idx = Math.min(maxPoints - 1, Math.floor((p2[0] - firstT) / bucketSize));
+    buckets[idx].push(p2);
+  }
+  const out2 = [];
+  for (const b2 of buckets) {
+    if (b2.length === 0) continue;
+    const t2 = b2[b2.length - 1][0];
+    if (method === "last") {
+      out2.push([t2, b2[b2.length - 1][1]]);
+      continue;
+    }
+    let sum2 = 0;
+    let count2 = 0;
+    for (const [, v4] of b2) {
+      const n3 = Number(v4);
+      if (Number.isFinite(n3)) {
+        sum2 += n3;
+        count2 += 1;
+      }
+    }
+    out2.push([t2, count2 ? sum2 / count2 : b2[b2.length - 1][1]]);
+  }
+  const last = points2[points2.length - 1];
+  const outLast = out2[out2.length - 1];
+  if (outLast && outLast[0] !== last[0]) out2.push(last);
+  return out2;
+}
+__name(downsample, "downsample");
 function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
   let min3 = Infinity;
   const walk = /* @__PURE__ */ __name((v4) => {
