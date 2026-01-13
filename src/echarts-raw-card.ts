@@ -28,104 +28,16 @@ import {
   coerceValue
 } from "./tokens/transforms";
 
+import {
+  histAttributes,
+  histEntityId,
+  histState,
+  histTimestampMs
+} from "./history/decode";
+import { downsample } from "./history/downsample";
+
 /* ------------------------------------------------------------------
  * Guards + helpers
- * ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------
- * History decoding helpers
- * Works for:
- *  - normal objects with entity_id/state/attributes/last_changed
- *  - compressed arrays where only first element has entity_id/attributes
- *  - (optional) minimal_response short keys (e/s/a/lc/lu)
- * ------------------------------------------------------------------ */
-
-type HistoryStateLike = Record<string, any>;
-
-function histEntityId(s: HistoryStateLike): string | undefined {
-  return (s.entity_id ?? s.e ?? s.id) as string | undefined;
-}
-
-function histState(s: HistoryStateLike): unknown {
-  return s.state ?? s.s ?? s.st;
-}
-
-function histAttributes(s: HistoryStateLike): Record<string, unknown> | undefined {
-  const a = s.attributes ?? s.a ?? s.attr;
-  return a && typeof a === "object" ? (a as Record<string, unknown>) : undefined;
-}
-
-function histTimestampMs(s: HistoryStateLike): number | undefined {
-  const t = (s.last_changed ??
-    s.last_updated ??
-    s.lc ??
-    s.lu ??
-    s.c ??
-    s.u ??
-    s.ts ??
-    s.t ??
-    s.time_fired) as string | number | undefined;
-
-  if (t == null) return undefined;
-
-  if (typeof t === "number") {
-    const ms = t < 1e12 ? t * 1000 : t;
-    return Number.isFinite(ms) ? ms : undefined;
-  }
-
-  const ms = Date.parse(t);
-  return Number.isFinite(ms) ? ms : undefined;
-}
-
-/* ------------------------------------------------------------------
- * Downsample
- * ------------------------------------------------------------------ */
-
-function downsample(
-  points: Array<[number, unknown]>,
-  maxPoints: number,
-  method: "mean" | "last"
-): Array<[number, unknown]> {
-  if (points.length <= maxPoints || maxPoints <= 1) return points;
-
-  const firstT = points[0][0];
-  const lastT = points[points.length - 1][0];
-  const span = Math.max(1, lastT - firstT);
-  const bucketSize = span / maxPoints;
-
-  const buckets: Array<Array<[number, unknown]>> = Array.from({ length: maxPoints }, () => []);
-  for (const p of points) {
-    const idx = Math.min(maxPoints - 1, Math.floor((p[0] - firstT) / bucketSize));
-    buckets[idx].push(p);
-  }
-
-  const out: Array<[number, unknown]> = [];
-  for (const b of buckets) {
-    if (b.length === 0) continue;
-    const t = b[b.length - 1][0];
-
-    if (method === "last") {
-      out.push([t, b[b.length - 1][1]]);
-      continue;
-    }
-
-    let sum = 0;
-    let count = 0;
-    for (const [, v] of b) {
-      const n = Number(v);
-      if (Number.isFinite(n)) {
-        sum += n;
-        count += 1;
-      }
-    }
-    out.push([t, count ? sum / count : b[b.length - 1][1]]);
-  }
-
-  return out;
-}
-
-/* ------------------------------------------------------------------
- * Async resolver
  * ------------------------------------------------------------------ */
 
 async function deepResolveTokensAsync(
@@ -134,53 +46,71 @@ async function deepResolveTokensAsync(
   watched: Set<string>,
   fetchHistory: (spec: HistoryGenerator["$history"]) => Promise<unknown>
 ): Promise<unknown> {
+  if (!input) return input;
+
+  // $history
   if (isHistoryGenerator(input)) {
-    return fetchHistory(input.$history);
+    const spec = input.$history;
+    for (const e of spec.entities ?? []) watched.add(normalizeEntitySpec(e).id);
+    return fetchHistory(spec);
   }
 
+  // $data
   if (isDataGenerator(input)) {
     const spec = input.$data;
-    const mode: DataMode = spec.mode ?? "pairs";
-    const nameFrom = spec.name_from ?? "friendly_name";
 
-    const includeLegacy = spec.include_unavailable ?? false;
     const excludeUnavailable = spec.exclude_unavailable ?? true;
-    const includeMissing = includeLegacy || !excludeUnavailable;
-
+    const includeLegacy = spec.include_unavailable ?? false;
     const excludeZero = spec.exclude_zero ?? false;
     const sort = spec.sort ?? "none";
     const limit = spec.limit;
+    const mode: DataMode = spec.mode ?? "pairs";
+    const nameFrom = spec.name_from ?? "friendly_name";
 
-    let rows: Array<{ name: string; value: unknown }> = [];
+    const rows: Array<{ id: string; name: string; value: unknown; num?: number }> = [];
 
     for (const rawSpec of spec.entities ?? []) {
       const { id, name: override } = normalizeEntitySpec(rawSpec);
-      const st = hass?.states?.[id];
-      if (!st && !includeMissing) continue;
 
-      const name =
+      watched.add(id);
+
+      const st = hass?.states?.[id];
+      const unavailable = !st || st.state === "unavailable" || st.state === "unknown";
+      if (unavailable) {
+        if ((excludeUnavailable && !includeLegacy) || !st) continue;
+        if (!includeLegacy) continue;
+      }
+
+      const displayName =
         override ??
         (nameFrom === "entity_id"
           ? id
-          : (st?.attributes?.friendly_name as string | undefined) ?? id);
+          : ((st?.attributes?.friendly_name as string | undefined) ?? id));
 
-      const value = resolveEntityNowValue(hass, id, spec, watched);
+      const raw = spec.attr ? st?.attributes?.[spec.attr] : st?.state;
+      const value = applyTransformsWithSpec(raw, id, spec.default, spec.coerce, spec.transforms);
 
-      if (excludeZero && Number(value) === 0) continue;
-      rows.push({ name, value });
+      const n = typeof value === "number" ? value : Number(value);
+      const num = Number.isFinite(n) ? n : undefined;
+
+      if (excludeZero && num === 0) continue;
+
+      rows.push({ id, name: displayName, value, num });
     }
 
-    if (sort === "asc" || sort === "desc") {
-      rows.sort((a, b) => (Number(a.value) - Number(b.value)) * (sort === "asc" ? 1 : -1));
-    }
+    if (sort === "asc") rows.sort((a, b) => (a.num ?? Infinity) - (b.num ?? Infinity));
+    else if (sort === "desc") rows.sort((a, b) => (b.num ?? -Infinity) - (a.num ?? -Infinity));
 
-    if (typeof limit === "number") rows = rows.slice(0, limit);
+    const sliced = typeof limit === "number" && limit > 0 ? rows.slice(0, limit) : rows;
 
-    if (mode === "pairs") return rows;
-    if (mode === "names") return rows.map((r) => r.name);
-    return rows.map((r) => r.value);
+    if (mode === "names") return sliced.map((r) => r.name);
+    if (mode === "values") return sliced.map((r) => r.value);
+
+    // pairs
+    return sliced.map((r) => ({ name: r.name, value: r.value }));
   }
 
+  // $entity token object
   if (isTokenObject(input)) {
     const entityId = input.$entity;
     watched.add(entityId);
@@ -199,7 +129,7 @@ async function deepResolveTokensAsync(
     return out;
   }
 
-  if (input && typeof input === "object") {
+  if (typeof input === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
       out[k] = await deepResolveTokensAsync(v, hass, watched, fetchHistory);

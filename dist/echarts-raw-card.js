@@ -75251,14 +75251,6 @@ function normalizeEntitySpec(e2) {
   return typeof e2 === "string" ? { id: e2 } : e2;
 }
 __name(normalizeEntitySpec, "normalizeEntitySpec");
-function resolveEntityNowValue(hass, entityId, spec, watched) {
-  watched.add(entityId);
-  const st = hass?.states?.[entityId];
-  if (!st) return spec.default;
-  const raw = spec.attr ? st.attributes?.[spec.attr] : st.state;
-  return applyTransformsWithSpec(raw, entityId, spec.default, spec.coerce, spec.transforms);
-}
-__name(resolveEntityNowValue, "resolveEntityNowValue");
 function parseTime(t2, fallbackMs) {
   if (t2 == null) return fallbackMs;
   if (typeof t2 === "number") return t2;
@@ -75320,40 +75312,52 @@ function downsample(points2, maxPoints, method) {
     }
     out2.push([t2, count2 ? sum2 / count2 : b2[b2.length - 1][1]]);
   }
+  const last = points2[points2.length - 1];
+  const outLast = out2[out2.length - 1];
+  if (outLast && outLast[0] !== last[0]) out2.push(last);
   return out2;
 }
 __name(downsample, "downsample");
 async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
+  if (!input) return input;
   if (isHistoryGenerator(input)) {
-    return fetchHistory(input.$history);
+    const spec = input.$history;
+    for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
+    return fetchHistory(spec);
   }
   if (isDataGenerator(input)) {
     const spec = input.$data;
-    const mode = spec.mode ?? "pairs";
-    const nameFrom = spec.name_from ?? "friendly_name";
-    const includeLegacy = spec.include_unavailable ?? false;
     const excludeUnavailable = spec.exclude_unavailable ?? true;
-    const includeMissing = includeLegacy || !excludeUnavailable;
+    const includeLegacy = spec.include_unavailable ?? false;
     const excludeZero = spec.exclude_zero ?? false;
     const sort2 = spec.sort ?? "none";
     const limit = spec.limit;
-    let rows = [];
+    const mode = spec.mode ?? "pairs";
+    const nameFrom = spec.name_from ?? "friendly_name";
+    const rows = [];
     for (const rawSpec of spec.entities ?? []) {
       const { id, name: override } = normalizeEntitySpec(rawSpec);
+      watched.add(id);
       const st = hass?.states?.[id];
-      if (!st && !includeMissing) continue;
-      const name = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
-      const value = resolveEntityNowValue(hass, id, spec, watched);
-      if (excludeZero && Number(value) === 0) continue;
-      rows.push({ name, value });
+      const unavailable = !st || st.state === "unavailable" || st.state === "unknown";
+      if (unavailable) {
+        if (excludeUnavailable && !includeLegacy || !st) continue;
+        if (!includeLegacy) continue;
+      }
+      const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
+      const raw = spec.attr ? st?.attributes?.[spec.attr] : st?.state;
+      const value = applyTransformsWithSpec(raw, id, spec.default, spec.coerce, spec.transforms);
+      const n3 = typeof value === "number" ? value : Number(value);
+      const num = Number.isFinite(n3) ? n3 : void 0;
+      if (excludeZero && num === 0) continue;
+      rows.push({ id, name: displayName, value, num });
     }
-    if (sort2 === "asc" || sort2 === "desc") {
-      rows.sort((a2, b2) => (Number(a2.value) - Number(b2.value)) * (sort2 === "asc" ? 1 : -1));
-    }
-    if (typeof limit === "number") rows = rows.slice(0, limit);
-    if (mode === "pairs") return rows;
-    if (mode === "names") return rows.map((r2) => r2.name);
-    return rows.map((r2) => r2.value);
+    if (sort2 === "asc") rows.sort((a2, b2) => (a2.num ?? Infinity) - (b2.num ?? Infinity));
+    else if (sort2 === "desc") rows.sort((a2, b2) => (b2.num ?? -Infinity) - (a2.num ?? -Infinity));
+    const sliced = typeof limit === "number" && limit > 0 ? rows.slice(0, limit) : rows;
+    if (mode === "names") return sliced.map((r2) => r2.name);
+    if (mode === "values") return sliced.map((r2) => r2.value);
+    return sliced.map((r2) => ({ name: r2.name, value: r2.value }));
   }
   if (isTokenObject(input)) {
     const entityId = input.$entity;
@@ -75369,7 +75373,7 @@ async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
     for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory));
     return out2;
   }
-  if (input && typeof input === "object") {
+  if (typeof input === "object") {
     const out2 = {};
     for (const [k2, v4] of Object.entries(input)) {
       out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory);
