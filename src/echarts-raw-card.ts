@@ -40,6 +40,8 @@ import {
   safeResize
 } from "./echarts/instance";
 
+import { shouldUpdateForHassChange, snapshotFingerprints } from "./card/watched";
+
 /* ------------------------------------------------------------------
  * Guards + helpers
  * ------------------------------------------------------------------ */
@@ -230,32 +232,9 @@ export class EchartsRawCard extends LitElement {
         if (Date.now() < this._nextHistoryAllowedMs) return;
       }
 
-      if (this._shouldUpdateForHassChange()) {
+      if (shouldUpdateForHassChange(this.hass, this._watchedEntities, this._lastFingerprints)) {
         this._applyOption();
       }
-    }
-  }
-
-  private _shouldUpdateForHassChange(): boolean {
-    if (!this._config?.option) return false;
-    if (this._watchedEntities.size === 0) return false;
-    if (!this.hass?.states) return false;
-
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
-      const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      const prev = this._lastFingerprints.get(entityId);
-      if (prev !== fp) return true;
-    }
-    return false;
-  }
-
-  private _snapshotFingerprints(): void {
-    if (!this.hass?.states) return;
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
-      const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      this._lastFingerprints.set(entityId, fp);
     }
   }
 
@@ -330,7 +309,7 @@ export class EchartsRawCard extends LitElement {
       const opts: SetOptionOpts = { notMerge: true, lazyUpdate: true };
 
       this._chart.setOption(option, opts);
-      this._snapshotFingerprints();
+  snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
 
       // Resize once after setting option (helps when HA lays out late)
       safeResize(this._chart, el);

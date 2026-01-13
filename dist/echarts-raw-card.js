@@ -75546,6 +75546,27 @@ function safeResize(chart, el) {
   }
 }
 __name(safeResize, "safeResize");
+function shouldUpdateForHassChange(hass, watchedEntities, lastFingerprints) {
+  if (watchedEntities.size === 0) return false;
+  if (!hass?.states) return false;
+  for (const entityId of watchedEntities) {
+    const st = hass.states[entityId];
+    const fp = st ? `${st.state}|${st.last_updated}` : "missing";
+    const prev = lastFingerprints.get(entityId);
+    if (prev !== fp) return true;
+  }
+  return false;
+}
+__name(shouldUpdateForHassChange, "shouldUpdateForHassChange");
+function snapshotFingerprints(hass, watchedEntities, lastFingerprints) {
+  if (!hass?.states) return;
+  for (const entityId of watchedEntities) {
+    const st = hass.states[entityId];
+    const fp = st ? `${st.state}|${st.last_updated}` : "missing";
+    lastFingerprints.set(entityId, fp);
+  }
+}
+__name(snapshotFingerprints, "snapshotFingerprints");
 class EchartsRawCard extends i$1 {
   static {
     __name(this, "EchartsRawCard");
@@ -75662,29 +75683,9 @@ class EchartsRawCard extends i$1 {
       if (this._config?.option && containsHistoryToken(this._config.option)) {
         if (Date.now() < this._nextHistoryAllowedMs) return;
       }
-      if (this._shouldUpdateForHassChange()) {
+      if (shouldUpdateForHassChange(this.hass, this._watchedEntities, this._lastFingerprints)) {
         this._applyOption();
       }
-    }
-  }
-  _shouldUpdateForHassChange() {
-    if (!this._config?.option) return false;
-    if (this._watchedEntities.size === 0) return false;
-    if (!this.hass?.states) return false;
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
-      const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      const prev = this._lastFingerprints.get(entityId);
-      if (prev !== fp) return true;
-    }
-    return false;
-  }
-  _snapshotFingerprints() {
-    if (!this.hass?.states) return;
-    for (const entityId of this._watchedEntities) {
-      const st = this.hass.states[entityId];
-      const fp = st ? `${st.state}|${st.last_updated}` : "missing";
-      this._lastFingerprints.set(entityId, fp);
     }
   }
   async _fetchHistory(spec) {
@@ -75732,7 +75733,7 @@ class EchartsRawCard extends i$1 {
       const option = opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor") ? resolved : { backgroundColor: "transparent", ...resolved };
       const opts = { notMerge: true, lazyUpdate: true };
       this._chart.setOption(option, opts);
-      this._snapshotFingerprints();
+      snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
       safeResize(this._chart, el);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
