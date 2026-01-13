@@ -75164,17 +75164,6 @@ function containsHistoryToken(input) {
   return false;
 }
 __name(containsHistoryToken, "containsHistoryToken");
-function normalizeEntitySpec(e2) {
-  return typeof e2 === "string" ? { id: e2 } : e2;
-}
-__name(normalizeEntitySpec, "normalizeEntitySpec");
-function parseTime(t2, fallbackMs) {
-  if (t2 == null) return fallbackMs;
-  if (typeof t2 === "number") return t2;
-  const ms = Date.parse(t2);
-  return Number.isFinite(ms) ? ms : fallbackMs;
-}
-__name(parseTime, "parseTime");
 function coerceValue(raw, mode = "auto") {
   if (mode === "string") return raw == null ? "" : String(raw);
   if (mode === "bool") {
@@ -75258,6 +75247,10 @@ function coerceHistoryPointNumber(raw, entityId, def, coerce, transforms) {
   return n3;
 }
 __name(coerceHistoryPointNumber, "coerceHistoryPointNumber");
+function normalizeEntitySpec(e2) {
+  return typeof e2 === "string" ? { id: e2 } : e2;
+}
+__name(normalizeEntitySpec, "normalizeEntitySpec");
 function resolveEntityNowValue(hass, entityId, spec, watched) {
   watched.add(entityId);
   const st = hass?.states?.[entityId];
@@ -75266,6 +75259,13 @@ function resolveEntityNowValue(hass, entityId, spec, watched) {
   return applyTransformsWithSpec(raw, entityId, spec.default, spec.coerce, spec.transforms);
 }
 __name(resolveEntityNowValue, "resolveEntityNowValue");
+function parseTime(t2, fallbackMs) {
+  if (t2 == null) return fallbackMs;
+  if (typeof t2 === "number") return t2;
+  const ms = Date.parse(t2);
+  return Number.isFinite(ms) ? ms : fallbackMs;
+}
+__name(parseTime, "parseTime");
 function histEntityId(s2) {
   return s2.entity_id ?? s2.e ?? s2.id;
 }
