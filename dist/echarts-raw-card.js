@@ -75258,12 +75258,12 @@ function parseTime(t2, fallbackMs) {
   return Number.isFinite(ms) ? ms : fallbackMs;
 }
 __name(parseTime, "parseTime");
-async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
+async function deepResolveTokensAsync(input, hass, watched, fetchHistory2) {
   if (!input) return input;
   if (isHistoryGenerator(input)) {
     const spec = input.$history;
     for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
-    return fetchHistory(spec);
+    return fetchHistory2(spec);
   }
   if (isDataGenerator(input)) {
     const spec = input.$data;
@@ -75310,19 +75310,35 @@ async function deepResolveTokensAsync(input, hass, watched, fetchHistory) {
   }
   if (Array.isArray(input)) {
     const out2 = [];
-    for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory));
+    for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory2));
     return out2;
   }
   if (typeof input === "object") {
     const out2 = {};
     for (const [k2, v4] of Object.entries(input)) {
-      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory);
+      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory2);
     }
     return out2;
   }
   return input;
 }
 __name(deepResolveTokensAsync, "deepResolveTokensAsync");
+function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
+  let min3 = Infinity;
+  const walk = /* @__PURE__ */ __name((v4) => {
+    if (!v4) return;
+    if (isHistoryGenerator(v4)) {
+      const cs = v4.$history.cache_seconds;
+      if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
+      return;
+    }
+    if (Array.isArray(v4)) return v4.forEach(walk);
+    if (typeof v4 === "object") Object.values(v4).forEach(walk);
+  }, "walk");
+  walk(option);
+  return Number.isFinite(min3) ? min3 : fallback;
+}
+__name(minHistoryCacheSecondsInOptionTree, "minHistoryCacheSecondsInOptionTree");
 function histEntityId(s2) {
   return s2.entity_id ?? s2.e ?? s2.id;
 }
@@ -75383,22 +75399,116 @@ function downsample(points2, maxPoints, method) {
   return out2;
 }
 __name(downsample, "downsample");
-function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
-  let min3 = Infinity;
-  const walk = /* @__PURE__ */ __name((v4) => {
-    if (!v4) return;
-    if (isHistoryGenerator(v4)) {
-      const cs = v4.$history.cache_seconds;
-      if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
-      return;
-    }
-    if (Array.isArray(v4)) return v4.forEach(walk);
-    if (typeof v4 === "object") Object.values(v4).forEach(walk);
-  }, "walk");
-  walk(option);
-  return Number.isFinite(min3) ? min3 : fallback;
+function historyCacheKey(spec, startMs, endMs) {
+  const ids = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id).join(",");
+  const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
+  const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
+  const minimal = spec.minimal_response ? "1" : "0";
+  return [
+    ids,
+    startMs,
+    endMs,
+    spec.attr ?? "",
+    spec.coerce ?? "number",
+    JSON.stringify(spec.transforms ?? {}),
+    spec.mode ?? "",
+    spec.series_type ?? "",
+    sample,
+    overrides,
+    minimal
+  ].join("|");
 }
-__name(minHistoryCacheSecondsInOptionTree, "minHistoryCacheSecondsInOptionTree");
+__name(historyCacheKey, "historyCacheKey");
+async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }) {
+  const cacheSeconds = spec.cache_seconds ?? 30;
+  let endMs = parseTime(spec.end, nowMs);
+  if (spec.end == null) {
+    const bucket = Math.max(1, cacheSeconds) * 1e3;
+    endMs = Math.floor(endMs / bucket) * bucket;
+  }
+  const startMs = spec.start != null ? parseTime(spec.start, endMs - 24 * 36e5) : endMs - (spec.hours ?? 24) * 36e5;
+  for (const e2 of spec.entities ?? []) watchedEntities.add(normalizeEntitySpec(e2).id);
+  const cacheKey = historyCacheKey(spec, startMs, endMs);
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > nowMs) return cached.value;
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+  const entityIds = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id);
+  const params = new URLSearchParams();
+  params.set("end_time", endIso);
+  if (spec.minimal_response) params.set("minimal_response", "1");
+  params.set("filter_entity_id", entityIds.join(","));
+  const hist = await hass.callApi(
+    "GET",
+    `history/period/${startIso}?${params.toString()}`
+  );
+  const nameFrom = spec.name_from ?? "friendly_name";
+  const seriesType2 = spec.series_type ?? "line";
+  const showSymbol = spec.show_symbol ?? false;
+  const idToName = /* @__PURE__ */ new Map();
+  for (const raw of spec.entities ?? []) {
+    const { id, name: override } = normalizeEntitySpec(raw);
+    const st = hass.states?.[id];
+    const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
+    idToName.set(id, displayName);
+  }
+  const perEntity = {};
+  for (const id of entityIds) perEntity[id] = [];
+  for (const arr of hist ?? []) {
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const arrEntityId = histEntityId(arr[0]);
+    for (const s2 of arr) {
+      const id = histEntityId(s2) ?? arrEntityId;
+      if (!id || !perEntity[id]) continue;
+      const ts = histTimestampMs(s2);
+      if (ts == null) continue;
+      const raw = spec.attr ? histAttributes(s2)?.[spec.attr] : histState(s2);
+      const n3 = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
+      if (n3 == null) continue;
+      perEntity[id].push([ts, n3]);
+    }
+  }
+  for (const id of entityIds) perEntity[id].sort((a2, b2) => a2[0] - b2[0]);
+  if (spec.sample?.max_points && spec.sample.max_points > 1) {
+    const method = spec.sample.method ?? "mean";
+    for (const id of entityIds) {
+      perEntity[id] = downsample(
+        perEntity[id],
+        spec.sample.max_points,
+        method
+      );
+    }
+  }
+  const inferredMode = spec.mode ?? (entityIds.length > 1 ? "series" : "values");
+  let result;
+  if (inferredMode === "values") {
+    const id = entityIds[0];
+    result = perEntity[id] ?? [];
+  } else {
+    const series = entityIds.map((id) => {
+      const displayName = idToName.get(id) ?? id;
+      const base2 = {
+        name: displayName,
+        type: seriesType2,
+        showSymbol,
+        data: perEntity[id] ?? []
+      };
+      const overridesByName = spec.series_overrides?.[displayName];
+      const overridesById = spec.series_overrides?.[id];
+      const overrides = overridesByName ?? overridesById;
+      if (overrides && typeof overrides === "object") Object.assign(base2, overrides);
+      return base2;
+    });
+    result = series;
+  }
+  cache.set(cacheKey, {
+    ts: nowMs,
+    value: result,
+    expiresAt: nowMs + cacheSeconds * 1e3
+  });
+  return result;
+}
+__name(fetchHistory, "fetchHistory");
 class EchartsRawCard extends i$1 {
   static {
     __name(this, "EchartsRawCard");
@@ -75564,117 +75674,15 @@ class EchartsRawCard extends i$1 {
       this._lastFingerprints.set(entityId, fp);
     }
   }
-  _historyCacheKey(spec, startMs, endMs) {
-    const ids = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id).join(",");
-    const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
-    const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
-    const minimal = spec.minimal_response ? "1" : "0";
-    return [
-      ids,
-      startMs,
-      endMs,
-      spec.attr ?? "",
-      spec.coerce ?? "number",
-      JSON.stringify(spec.transforms ?? {}),
-      spec.mode ?? "",
-      spec.series_type ?? "",
-      sample,
-      overrides,
-      minimal
-    ].join("|");
-  }
   async _fetchHistory(spec) {
     if (!this.hass) return [];
-    const now = Date.now();
-    const cacheSeconds = spec.cache_seconds ?? 30;
-    let endMs = parseTime(spec.end, now);
-    if (spec.end == null) {
-      const bucket = Math.max(1, cacheSeconds) * 1e3;
-      endMs = Math.floor(endMs / bucket) * bucket;
-    }
-    const startMs = spec.start != null ? parseTime(spec.start, endMs - 24 * 36e5) : endMs - (spec.hours ?? 24) * 36e5;
-    for (const e2 of spec.entities ?? []) this._watchedEntities.add(normalizeEntitySpec(e2).id);
-    const cacheKey = this._historyCacheKey(spec, startMs, endMs);
-    const cached = this._historyCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) return cached.value;
-    const startIso = new Date(startMs).toISOString();
-    const endIso = new Date(endMs).toISOString();
-    const entityIds = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id);
-    const params = new URLSearchParams();
-    params.set("end_time", endIso);
-    if (spec.minimal_response) params.set("minimal_response", "1");
-    params.set("filter_entity_id", entityIds.join(","));
-    const hist = await this.hass.callApi(
-      "GET",
-      `history/period/${startIso}?${params.toString()}`
-    );
-    const nameFrom = spec.name_from ?? "friendly_name";
-    const seriesType2 = spec.series_type ?? "line";
-    const showSymbol = spec.show_symbol ?? false;
-    const idToName = /* @__PURE__ */ new Map();
-    const nameToId = /* @__PURE__ */ new Map();
-    for (const raw of spec.entities ?? []) {
-      const { id, name: override } = normalizeEntitySpec(raw);
-      const st = this.hass.states?.[id];
-      const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
-      idToName.set(id, displayName);
-      nameToId.set(displayName, id);
-    }
-    const perEntity = {};
-    for (const id of entityIds) perEntity[id] = [];
-    for (const arr of hist ?? []) {
-      if (!Array.isArray(arr) || arr.length === 0) continue;
-      const arrEntityId = histEntityId(arr[0]);
-      for (const s2 of arr) {
-        const id = histEntityId(s2) ?? arrEntityId;
-        if (!id || !perEntity[id]) continue;
-        const ts = histTimestampMs(s2);
-        if (ts == null) continue;
-        const raw = spec.attr ? histAttributes(s2)?.[spec.attr] : histState(s2);
-        const n3 = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
-        if (n3 == null) continue;
-        perEntity[id].push([ts, n3]);
-      }
-    }
-    for (const id of entityIds) perEntity[id].sort((a2, b2) => a2[0] - b2[0]);
-    if (spec.sample?.max_points && spec.sample.max_points > 1) {
-      const method = spec.sample.method ?? "mean";
-      for (const id of entityIds) {
-        perEntity[id] = downsample(
-          perEntity[id],
-          spec.sample.max_points,
-          method
-        );
-      }
-    }
-    const inferredMode = spec.mode ?? (entityIds.length > 1 ? "series" : "values");
-    let result;
-    if (inferredMode === "values") {
-      const id = entityIds[0];
-      result = perEntity[id] ?? [];
-    } else {
-      const series = entityIds.map((id) => {
-        const displayName = idToName.get(id) ?? id;
-        const base2 = {
-          name: displayName,
-          type: seriesType2,
-          showSymbol,
-          data: perEntity[id] ?? []
-        };
-        const overridesByName = spec.series_overrides?.[displayName];
-        const overridesById = spec.series_overrides?.[id];
-        const overrides = overridesByName ?? overridesById;
-        if (overrides && typeof overrides === "object") Object.assign(base2, overrides);
-        return base2;
-      });
-      result = series;
-    }
-    this._historyCache.set(cacheKey, {
-      ts: now,
-      value: result,
-      expiresAt: now + cacheSeconds * 1e3
+    return fetchHistory({
+      hass: this.hass,
+      spec,
+      watchedEntities: this._watchedEntities,
+      cache: this._historyCache,
+      nowMs: Date.now()
     });
-    return result;
   }
   _applyOption() {
     void this._applyOptionAsync();
