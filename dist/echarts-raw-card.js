@@ -555,6 +555,373 @@ i$1._$litElement$ = true, i$1["finalized"] = true, s.litElementHydrateSupport?.(
 const o = s.litElementPolyfillSupport;
 o?.({ LitElement: i$1 });
 (s.litElementVersions ??= []).push("4.2.2");
+function isDataGenerator(v4) {
+  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$data" in v4;
+}
+__name(isDataGenerator, "isDataGenerator");
+function isHistoryGenerator(v4) {
+  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$history" in v4;
+}
+__name(isHistoryGenerator, "isHistoryGenerator");
+function isTokenObject(v4) {
+  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$entity" in v4;
+}
+__name(isTokenObject, "isTokenObject");
+function containsHistoryToken(input) {
+  if (!input) return false;
+  if (isHistoryGenerator(input)) return true;
+  if (Array.isArray(input)) return input.some(containsHistoryToken);
+  if (typeof input === "object") {
+    return Object.values(input).some(containsHistoryToken);
+  }
+  return false;
+}
+__name(containsHistoryToken, "containsHistoryToken");
+function coerceValue(raw, mode = "auto") {
+  if (mode === "string") return raw == null ? "" : String(raw);
+  if (mode === "bool") {
+    if (typeof raw === "boolean") return raw;
+    if (typeof raw === "number") return raw !== 0;
+    if (typeof raw === "string") {
+      const s2 = raw.toLowerCase().trim();
+      if (["on", "true", "1", "yes", "home", "open"].includes(s2)) return true;
+      if (["off", "false", "0", "no", "not_home", "closed"].includes(s2)) return false;
+      return Boolean(s2);
+    }
+    return Boolean(raw);
+  }
+  if (mode === "number") {
+    const n3 = typeof raw === "number" ? raw : Number(raw);
+    return Number.isFinite(n3) ? n3 : NaN;
+  }
+  if (typeof raw === "number" || typeof raw === "boolean") return raw;
+  if (typeof raw === "string") {
+    const s2 = raw.trim();
+    if (s2 === "") return raw;
+    const n3 = Number(s2);
+    return Number.isFinite(n3) ? n3 : raw;
+  }
+  return raw;
+}
+__name(coerceValue, "coerceValue");
+function applyNumberTransforms(value, token) {
+  let x2 = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(x2)) return token.$default ?? value;
+  if (token.$map) {
+    const m2 = token.$map;
+    if (m2.type === "log") {
+      const base2 = m2.base ?? 10;
+      const add2 = m2.add ?? 1;
+      x2 = Math.log(x2 + add2) / Math.log(base2);
+    } else if (m2.type === "sqrt") {
+      x2 = x2 < 0 ? 0 : Math.sqrt(x2);
+    } else if (m2.type === "pow") {
+      x2 = Math.pow(x2, m2.pow);
+    }
+  }
+  if (token.$abs) x2 = Math.abs(x2);
+  if (typeof token.$scale === "number") x2 *= token.$scale;
+  if (typeof token.$offset === "number") x2 += token.$offset;
+  if (typeof token.$min === "number") x2 = Math.max(token.$min, x2);
+  if (typeof token.$max === "number") x2 = Math.min(token.$max, x2);
+  if (token.$clamp) {
+    const [min3, max3] = token.$clamp;
+    x2 = Math.min(max3, Math.max(min3, x2));
+  }
+  if (typeof token.$round === "number") {
+    const p2 = Math.pow(10, token.$round);
+    x2 = Math.round(x2 * p2) / p2;
+  }
+  return x2;
+}
+__name(applyNumberTransforms, "applyNumberTransforms");
+function applyTransformsWithSpec(value, entityId, def, coerce, transforms) {
+  const coerced = coerceValue(value, coerce ?? "auto");
+  if (typeof coerced === "number" && Number.isNaN(coerced)) return def ?? 0;
+  const token = {
+    $default: def,
+    $map: transforms?.map,
+    $abs: transforms?.abs,
+    $scale: transforms?.scale,
+    $offset: transforms?.offset,
+    $min: transforms?.min,
+    $max: transforms?.max,
+    $clamp: transforms?.clamp,
+    $round: transforms?.round
+  };
+  return applyNumberTransforms(coerced, token);
+}
+__name(applyTransformsWithSpec, "applyTransformsWithSpec");
+function coerceHistoryPointNumber(raw, entityId, def, coerce, transforms) {
+  const coerceMode = coerce ?? "number";
+  const v4 = applyTransformsWithSpec(raw, entityId, def, coerceMode, transforms);
+  const n3 = typeof v4 === "number" ? v4 : Number(v4);
+  if (!Number.isFinite(n3)) return void 0;
+  return n3;
+}
+__name(coerceHistoryPointNumber, "coerceHistoryPointNumber");
+function normalizeEntitySpec(e2) {
+  return typeof e2 === "string" ? { id: e2 } : e2;
+}
+__name(normalizeEntitySpec, "normalizeEntitySpec");
+function parseTime(t2, fallbackMs) {
+  if (t2 == null) return fallbackMs;
+  if (typeof t2 === "number") return t2;
+  const ms = Date.parse(t2);
+  return Number.isFinite(ms) ? ms : fallbackMs;
+}
+__name(parseTime, "parseTime");
+async function deepResolveTokensAsync(input, hass, watched, fetchHistory2) {
+  if (!input) return input;
+  if (isHistoryGenerator(input)) {
+    const spec = input.$history;
+    for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
+    return fetchHistory2(spec);
+  }
+  if (isDataGenerator(input)) {
+    const spec = input.$data;
+    const excludeUnavailable = spec.exclude_unavailable ?? true;
+    const includeLegacy = spec.include_unavailable ?? false;
+    const excludeZero = spec.exclude_zero ?? false;
+    const sort2 = spec.sort ?? "none";
+    const limit = spec.limit;
+    const mode = spec.mode ?? "pairs";
+    const nameFrom = spec.name_from ?? "friendly_name";
+    const rows = [];
+    for (const rawSpec of spec.entities ?? []) {
+      const { id, name: override } = normalizeEntitySpec(rawSpec);
+      watched.add(id);
+      const st = hass?.states?.[id];
+      const unavailable = !st || st.state === "unavailable" || st.state === "unknown";
+      if (unavailable) {
+        if (excludeUnavailable && !includeLegacy || !st) continue;
+        if (!includeLegacy) continue;
+      }
+      const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
+      const raw = spec.attr ? st?.attributes?.[spec.attr] : st?.state;
+      const value = applyTransformsWithSpec(raw, id, spec.default, spec.coerce, spec.transforms);
+      const n3 = typeof value === "number" ? value : Number(value);
+      const num = Number.isFinite(n3) ? n3 : void 0;
+      if (excludeZero && num === 0) continue;
+      rows.push({ id, name: displayName, value, num });
+    }
+    if (sort2 === "asc") rows.sort((a2, b2) => (a2.num ?? Infinity) - (b2.num ?? Infinity));
+    else if (sort2 === "desc") rows.sort((a2, b2) => (b2.num ?? -Infinity) - (a2.num ?? -Infinity));
+    const sliced = typeof limit === "number" && limit > 0 ? rows.slice(0, limit) : rows;
+    if (mode === "names") return sliced.map((r2) => r2.name);
+    if (mode === "values") return sliced.map((r2) => r2.value);
+    return sliced.map((r2) => ({ name: r2.name, value: r2.value }));
+  }
+  if (isTokenObject(input)) {
+    const entityId = input.$entity;
+    watched.add(entityId);
+    const st = hass?.states?.[entityId];
+    if (!st) return input.$default;
+    const raw = input.$attr ? st.attributes?.[input.$attr] : st.state;
+    const coerced = coerceValue(raw, input.$coerce ?? "auto");
+    return applyNumberTransforms(coerced, input);
+  }
+  if (Array.isArray(input)) {
+    const out2 = [];
+    for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory2));
+    return out2;
+  }
+  if (typeof input === "object") {
+    const out2 = {};
+    for (const [k2, v4] of Object.entries(input)) {
+      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory2);
+    }
+    return out2;
+  }
+  return input;
+}
+__name(deepResolveTokensAsync, "deepResolveTokensAsync");
+function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
+  let min3 = Infinity;
+  const walk = /* @__PURE__ */ __name((v4) => {
+    if (!v4) return;
+    if (isHistoryGenerator(v4)) {
+      const cs = v4.$history.cache_seconds;
+      if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
+      return;
+    }
+    if (Array.isArray(v4)) return v4.forEach(walk);
+    if (typeof v4 === "object") Object.values(v4).forEach(walk);
+  }, "walk");
+  walk(option);
+  return Number.isFinite(min3) ? min3 : fallback;
+}
+__name(minHistoryCacheSecondsInOptionTree, "minHistoryCacheSecondsInOptionTree");
+function histEntityId(s2) {
+  return s2.entity_id ?? s2.e ?? s2.id;
+}
+__name(histEntityId, "histEntityId");
+function histState(s2) {
+  return s2.state ?? s2.s ?? s2.st;
+}
+__name(histState, "histState");
+function histAttributes(s2) {
+  const a2 = s2.attributes ?? s2.a ?? s2.attr;
+  return a2 && typeof a2 === "object" ? a2 : void 0;
+}
+__name(histAttributes, "histAttributes");
+function histTimestampMs(s2) {
+  const t2 = s2.last_changed ?? s2.last_updated ?? s2.lc ?? s2.lu ?? s2.c ?? s2.u ?? s2.ts ?? s2.t ?? s2.time_fired;
+  if (t2 == null) return void 0;
+  if (typeof t2 === "number") {
+    const ms2 = t2 < 1e12 ? t2 * 1e3 : t2;
+    return Number.isFinite(ms2) ? ms2 : void 0;
+  }
+  const ms = Date.parse(t2);
+  return Number.isFinite(ms) ? ms : void 0;
+}
+__name(histTimestampMs, "histTimestampMs");
+function downsample(points2, maxPoints, method) {
+  if (points2.length <= maxPoints || maxPoints <= 1) return points2;
+  const firstT = points2[0][0];
+  const lastT = points2[points2.length - 1][0];
+  const span = Math.max(1, lastT - firstT);
+  const bucketSize = span / maxPoints;
+  const buckets = Array.from({ length: maxPoints }, () => []);
+  for (const p2 of points2) {
+    const idx = Math.min(maxPoints - 1, Math.floor((p2[0] - firstT) / bucketSize));
+    buckets[idx].push(p2);
+  }
+  const out2 = [];
+  for (const b2 of buckets) {
+    if (b2.length === 0) continue;
+    const t2 = b2[b2.length - 1][0];
+    if (method === "last") {
+      out2.push([t2, b2[b2.length - 1][1]]);
+      continue;
+    }
+    let sum2 = 0;
+    let count2 = 0;
+    for (const [, v4] of b2) {
+      const n3 = Number(v4);
+      if (Number.isFinite(n3)) {
+        sum2 += n3;
+        count2 += 1;
+      }
+    }
+    out2.push([t2, count2 ? sum2 / count2 : b2[b2.length - 1][1]]);
+  }
+  const last = points2[points2.length - 1];
+  const outLast = out2[out2.length - 1];
+  if (outLast && outLast[0] !== last[0]) out2.push(last);
+  return out2;
+}
+__name(downsample, "downsample");
+function historyCacheKey(spec, startMs, endMs) {
+  const ids = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id).join(",");
+  const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
+  const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
+  const minimal = spec.minimal_response ? "1" : "0";
+  return [
+    ids,
+    startMs,
+    endMs,
+    spec.attr ?? "",
+    spec.coerce ?? "number",
+    JSON.stringify(spec.transforms ?? {}),
+    spec.mode ?? "",
+    spec.series_type ?? "",
+    sample,
+    overrides,
+    minimal
+  ].join("|");
+}
+__name(historyCacheKey, "historyCacheKey");
+async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }) {
+  const cacheSeconds = spec.cache_seconds ?? 30;
+  let endMs = parseTime(spec.end, nowMs);
+  if (spec.end == null) {
+    const bucket = Math.max(1, cacheSeconds) * 1e3;
+    endMs = Math.floor(endMs / bucket) * bucket;
+  }
+  const startMs = spec.start != null ? parseTime(spec.start, endMs - 24 * 36e5) : endMs - (spec.hours ?? 24) * 36e5;
+  for (const e2 of spec.entities ?? []) watchedEntities.add(normalizeEntitySpec(e2).id);
+  const cacheKey = historyCacheKey(spec, startMs, endMs);
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > nowMs) return cached.value;
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+  const entityIds = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id);
+  const params = new URLSearchParams();
+  params.set("end_time", endIso);
+  if (spec.minimal_response) params.set("minimal_response", "1");
+  params.set("filter_entity_id", entityIds.join(","));
+  const hist = await hass.callApi(
+    "GET",
+    `history/period/${startIso}?${params.toString()}`
+  );
+  const nameFrom = spec.name_from ?? "friendly_name";
+  const seriesType2 = spec.series_type ?? "line";
+  const showSymbol = spec.show_symbol ?? false;
+  const idToName = /* @__PURE__ */ new Map();
+  for (const raw of spec.entities ?? []) {
+    const { id, name: override } = normalizeEntitySpec(raw);
+    const st = hass.states?.[id];
+    const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
+    idToName.set(id, displayName);
+  }
+  const perEntity = {};
+  for (const id of entityIds) perEntity[id] = [];
+  for (const arr of hist ?? []) {
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const arrEntityId = histEntityId(arr[0]);
+    for (const s2 of arr) {
+      const id = histEntityId(s2) ?? arrEntityId;
+      if (!id || !perEntity[id]) continue;
+      const ts = histTimestampMs(s2);
+      if (ts == null) continue;
+      const raw = spec.attr ? histAttributes(s2)?.[spec.attr] : histState(s2);
+      const n3 = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
+      if (n3 == null) continue;
+      perEntity[id].push([ts, n3]);
+    }
+  }
+  for (const id of entityIds) perEntity[id].sort((a2, b2) => a2[0] - b2[0]);
+  if (spec.sample?.max_points && spec.sample.max_points > 1) {
+    const method = spec.sample.method ?? "mean";
+    for (const id of entityIds) {
+      perEntity[id] = downsample(
+        perEntity[id],
+        spec.sample.max_points,
+        method
+      );
+    }
+  }
+  const inferredMode = spec.mode ?? (entityIds.length > 1 ? "series" : "values");
+  let result;
+  if (inferredMode === "values") {
+    const id = entityIds[0];
+    result = perEntity[id] ?? [];
+  } else {
+    const series = entityIds.map((id) => {
+      const displayName = idToName.get(id) ?? id;
+      const base2 = {
+        name: displayName,
+        type: seriesType2,
+        showSymbol,
+        data: perEntity[id] ?? []
+      };
+      const overridesByName = spec.series_overrides?.[displayName];
+      const overridesById = spec.series_overrides?.[id];
+      const overrides = overridesByName ?? overridesById;
+      if (overrides && typeof overrides === "object") Object.assign(base2, overrides);
+      return base2;
+    });
+    result = series;
+  }
+  cache.set(cacheKey, {
+    ts: nowMs,
+    value: result,
+    expiresAt: nowMs + cacheSeconds * 1e3
+  });
+  return result;
+}
+__name(fetchHistory, "fetchHistory");
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
@@ -75142,373 +75509,43 @@ use(install$1);
 use(install);
 use(installUniversalTransition);
 use(installLabelLayout);
-function isDataGenerator(v4) {
-  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$data" in v4;
+function getContainer(root) {
+  return root.querySelector(".echarts-container");
 }
-__name(isDataGenerator, "isDataGenerator");
-function isHistoryGenerator(v4) {
-  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$history" in v4;
+__name(getContainer, "getContainer");
+function hasSize(el) {
+  return el.clientWidth > 0 && el.clientHeight > 0;
 }
-__name(isHistoryGenerator, "isHistoryGenerator");
-function isTokenObject(v4) {
-  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$entity" in v4;
+__name(hasSize, "hasSize");
+function getAttachedInstance(el) {
+  try {
+    return getInstanceByDom(el);
+  } catch {
+    return void 0;
+  }
 }
-__name(isTokenObject, "isTokenObject");
-function containsHistoryToken(input) {
-  if (!input) return false;
-  if (isHistoryGenerator(input)) return true;
-  if (Array.isArray(input)) return input.some(containsHistoryToken);
-  if (typeof input === "object") {
-    return Object.values(input).some(containsHistoryToken);
-  }
-  return false;
+__name(getAttachedInstance, "getAttachedInstance");
+function initChart(el, theme2, renderer) {
+  return init$1(el, theme2, { renderer });
 }
-__name(containsHistoryToken, "containsHistoryToken");
-function coerceValue(raw, mode = "auto") {
-  if (mode === "string") return raw == null ? "" : String(raw);
-  if (mode === "bool") {
-    if (typeof raw === "boolean") return raw;
-    if (typeof raw === "number") return raw !== 0;
-    if (typeof raw === "string") {
-      const s2 = raw.toLowerCase().trim();
-      if (["on", "true", "1", "yes", "home", "open"].includes(s2)) return true;
-      if (["off", "false", "0", "no", "not_home", "closed"].includes(s2)) return false;
-      return Boolean(s2);
-    }
-    return Boolean(raw);
+__name(initChart, "initChart");
+function disposeChart(chart) {
+  if (!chart) return;
+  try {
+    chart.dispose();
+  } catch {
   }
-  if (mode === "number") {
-    const n3 = typeof raw === "number" ? raw : Number(raw);
-    return Number.isFinite(n3) ? n3 : NaN;
-  }
-  if (typeof raw === "number" || typeof raw === "boolean") return raw;
-  if (typeof raw === "string") {
-    const s2 = raw.trim();
-    if (s2 === "") return raw;
-    const n3 = Number(s2);
-    return Number.isFinite(n3) ? n3 : raw;
-  }
-  return raw;
 }
-__name(coerceValue, "coerceValue");
-function applyNumberTransforms(value, token) {
-  let x2 = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(x2)) return token.$default ?? value;
-  if (token.$map) {
-    const m2 = token.$map;
-    if (m2.type === "log") {
-      const base2 = m2.base ?? 10;
-      const add2 = m2.add ?? 1;
-      x2 = Math.log(x2 + add2) / Math.log(base2);
-    } else if (m2.type === "sqrt") {
-      x2 = x2 < 0 ? 0 : Math.sqrt(x2);
-    } else if (m2.type === "pow") {
-      x2 = Math.pow(x2, m2.pow);
-    }
+__name(disposeChart, "disposeChart");
+function safeResize(chart, el) {
+  if (!hasSize(el)) return;
+  try {
+    chart.resize();
+  } catch {
+    disposeChart(chart);
   }
-  if (token.$abs) x2 = Math.abs(x2);
-  if (typeof token.$scale === "number") x2 *= token.$scale;
-  if (typeof token.$offset === "number") x2 += token.$offset;
-  if (typeof token.$min === "number") x2 = Math.max(token.$min, x2);
-  if (typeof token.$max === "number") x2 = Math.min(token.$max, x2);
-  if (token.$clamp) {
-    const [min3, max3] = token.$clamp;
-    x2 = Math.min(max3, Math.max(min3, x2));
-  }
-  if (typeof token.$round === "number") {
-    const p2 = Math.pow(10, token.$round);
-    x2 = Math.round(x2 * p2) / p2;
-  }
-  return x2;
 }
-__name(applyNumberTransforms, "applyNumberTransforms");
-function applyTransformsWithSpec(value, entityId, def, coerce, transforms) {
-  const coerced = coerceValue(value, coerce ?? "auto");
-  if (typeof coerced === "number" && Number.isNaN(coerced)) return def ?? 0;
-  const token = {
-    $default: def,
-    $map: transforms?.map,
-    $abs: transforms?.abs,
-    $scale: transforms?.scale,
-    $offset: transforms?.offset,
-    $min: transforms?.min,
-    $max: transforms?.max,
-    $clamp: transforms?.clamp,
-    $round: transforms?.round
-  };
-  return applyNumberTransforms(coerced, token);
-}
-__name(applyTransformsWithSpec, "applyTransformsWithSpec");
-function coerceHistoryPointNumber(raw, entityId, def, coerce, transforms) {
-  const coerceMode = coerce ?? "number";
-  const v4 = applyTransformsWithSpec(raw, entityId, def, coerceMode, transforms);
-  const n3 = typeof v4 === "number" ? v4 : Number(v4);
-  if (!Number.isFinite(n3)) return void 0;
-  return n3;
-}
-__name(coerceHistoryPointNumber, "coerceHistoryPointNumber");
-function normalizeEntitySpec(e2) {
-  return typeof e2 === "string" ? { id: e2 } : e2;
-}
-__name(normalizeEntitySpec, "normalizeEntitySpec");
-function parseTime(t2, fallbackMs) {
-  if (t2 == null) return fallbackMs;
-  if (typeof t2 === "number") return t2;
-  const ms = Date.parse(t2);
-  return Number.isFinite(ms) ? ms : fallbackMs;
-}
-__name(parseTime, "parseTime");
-async function deepResolveTokensAsync(input, hass, watched, fetchHistory2) {
-  if (!input) return input;
-  if (isHistoryGenerator(input)) {
-    const spec = input.$history;
-    for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
-    return fetchHistory2(spec);
-  }
-  if (isDataGenerator(input)) {
-    const spec = input.$data;
-    const excludeUnavailable = spec.exclude_unavailable ?? true;
-    const includeLegacy = spec.include_unavailable ?? false;
-    const excludeZero = spec.exclude_zero ?? false;
-    const sort2 = spec.sort ?? "none";
-    const limit = spec.limit;
-    const mode = spec.mode ?? "pairs";
-    const nameFrom = spec.name_from ?? "friendly_name";
-    const rows = [];
-    for (const rawSpec of spec.entities ?? []) {
-      const { id, name: override } = normalizeEntitySpec(rawSpec);
-      watched.add(id);
-      const st = hass?.states?.[id];
-      const unavailable = !st || st.state === "unavailable" || st.state === "unknown";
-      if (unavailable) {
-        if (excludeUnavailable && !includeLegacy || !st) continue;
-        if (!includeLegacy) continue;
-      }
-      const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
-      const raw = spec.attr ? st?.attributes?.[spec.attr] : st?.state;
-      const value = applyTransformsWithSpec(raw, id, spec.default, spec.coerce, spec.transforms);
-      const n3 = typeof value === "number" ? value : Number(value);
-      const num = Number.isFinite(n3) ? n3 : void 0;
-      if (excludeZero && num === 0) continue;
-      rows.push({ id, name: displayName, value, num });
-    }
-    if (sort2 === "asc") rows.sort((a2, b2) => (a2.num ?? Infinity) - (b2.num ?? Infinity));
-    else if (sort2 === "desc") rows.sort((a2, b2) => (b2.num ?? -Infinity) - (a2.num ?? -Infinity));
-    const sliced = typeof limit === "number" && limit > 0 ? rows.slice(0, limit) : rows;
-    if (mode === "names") return sliced.map((r2) => r2.name);
-    if (mode === "values") return sliced.map((r2) => r2.value);
-    return sliced.map((r2) => ({ name: r2.name, value: r2.value }));
-  }
-  if (isTokenObject(input)) {
-    const entityId = input.$entity;
-    watched.add(entityId);
-    const st = hass?.states?.[entityId];
-    if (!st) return input.$default;
-    const raw = input.$attr ? st.attributes?.[input.$attr] : st.state;
-    const coerced = coerceValue(raw, input.$coerce ?? "auto");
-    return applyNumberTransforms(coerced, input);
-  }
-  if (Array.isArray(input)) {
-    const out2 = [];
-    for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory2));
-    return out2;
-  }
-  if (typeof input === "object") {
-    const out2 = {};
-    for (const [k2, v4] of Object.entries(input)) {
-      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory2);
-    }
-    return out2;
-  }
-  return input;
-}
-__name(deepResolveTokensAsync, "deepResolveTokensAsync");
-function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
-  let min3 = Infinity;
-  const walk = /* @__PURE__ */ __name((v4) => {
-    if (!v4) return;
-    if (isHistoryGenerator(v4)) {
-      const cs = v4.$history.cache_seconds;
-      if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
-      return;
-    }
-    if (Array.isArray(v4)) return v4.forEach(walk);
-    if (typeof v4 === "object") Object.values(v4).forEach(walk);
-  }, "walk");
-  walk(option);
-  return Number.isFinite(min3) ? min3 : fallback;
-}
-__name(minHistoryCacheSecondsInOptionTree, "minHistoryCacheSecondsInOptionTree");
-function histEntityId(s2) {
-  return s2.entity_id ?? s2.e ?? s2.id;
-}
-__name(histEntityId, "histEntityId");
-function histState(s2) {
-  return s2.state ?? s2.s ?? s2.st;
-}
-__name(histState, "histState");
-function histAttributes(s2) {
-  const a2 = s2.attributes ?? s2.a ?? s2.attr;
-  return a2 && typeof a2 === "object" ? a2 : void 0;
-}
-__name(histAttributes, "histAttributes");
-function histTimestampMs(s2) {
-  const t2 = s2.last_changed ?? s2.last_updated ?? s2.lc ?? s2.lu ?? s2.c ?? s2.u ?? s2.ts ?? s2.t ?? s2.time_fired;
-  if (t2 == null) return void 0;
-  if (typeof t2 === "number") {
-    const ms2 = t2 < 1e12 ? t2 * 1e3 : t2;
-    return Number.isFinite(ms2) ? ms2 : void 0;
-  }
-  const ms = Date.parse(t2);
-  return Number.isFinite(ms) ? ms : void 0;
-}
-__name(histTimestampMs, "histTimestampMs");
-function downsample(points2, maxPoints, method) {
-  if (points2.length <= maxPoints || maxPoints <= 1) return points2;
-  const firstT = points2[0][0];
-  const lastT = points2[points2.length - 1][0];
-  const span = Math.max(1, lastT - firstT);
-  const bucketSize = span / maxPoints;
-  const buckets = Array.from({ length: maxPoints }, () => []);
-  for (const p2 of points2) {
-    const idx = Math.min(maxPoints - 1, Math.floor((p2[0] - firstT) / bucketSize));
-    buckets[idx].push(p2);
-  }
-  const out2 = [];
-  for (const b2 of buckets) {
-    if (b2.length === 0) continue;
-    const t2 = b2[b2.length - 1][0];
-    if (method === "last") {
-      out2.push([t2, b2[b2.length - 1][1]]);
-      continue;
-    }
-    let sum2 = 0;
-    let count2 = 0;
-    for (const [, v4] of b2) {
-      const n3 = Number(v4);
-      if (Number.isFinite(n3)) {
-        sum2 += n3;
-        count2 += 1;
-      }
-    }
-    out2.push([t2, count2 ? sum2 / count2 : b2[b2.length - 1][1]]);
-  }
-  const last = points2[points2.length - 1];
-  const outLast = out2[out2.length - 1];
-  if (outLast && outLast[0] !== last[0]) out2.push(last);
-  return out2;
-}
-__name(downsample, "downsample");
-function historyCacheKey(spec, startMs, endMs) {
-  const ids = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id).join(",");
-  const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
-  const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
-  const minimal = spec.minimal_response ? "1" : "0";
-  return [
-    ids,
-    startMs,
-    endMs,
-    spec.attr ?? "",
-    spec.coerce ?? "number",
-    JSON.stringify(spec.transforms ?? {}),
-    spec.mode ?? "",
-    spec.series_type ?? "",
-    sample,
-    overrides,
-    minimal
-  ].join("|");
-}
-__name(historyCacheKey, "historyCacheKey");
-async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }) {
-  const cacheSeconds = spec.cache_seconds ?? 30;
-  let endMs = parseTime(spec.end, nowMs);
-  if (spec.end == null) {
-    const bucket = Math.max(1, cacheSeconds) * 1e3;
-    endMs = Math.floor(endMs / bucket) * bucket;
-  }
-  const startMs = spec.start != null ? parseTime(spec.start, endMs - 24 * 36e5) : endMs - (spec.hours ?? 24) * 36e5;
-  for (const e2 of spec.entities ?? []) watchedEntities.add(normalizeEntitySpec(e2).id);
-  const cacheKey = historyCacheKey(spec, startMs, endMs);
-  const cached = cache.get(cacheKey);
-  if (cached && cached.expiresAt > nowMs) return cached.value;
-  const startIso = new Date(startMs).toISOString();
-  const endIso = new Date(endMs).toISOString();
-  const entityIds = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id);
-  const params = new URLSearchParams();
-  params.set("end_time", endIso);
-  if (spec.minimal_response) params.set("minimal_response", "1");
-  params.set("filter_entity_id", entityIds.join(","));
-  const hist = await hass.callApi(
-    "GET",
-    `history/period/${startIso}?${params.toString()}`
-  );
-  const nameFrom = spec.name_from ?? "friendly_name";
-  const seriesType2 = spec.series_type ?? "line";
-  const showSymbol = spec.show_symbol ?? false;
-  const idToName = /* @__PURE__ */ new Map();
-  for (const raw of spec.entities ?? []) {
-    const { id, name: override } = normalizeEntitySpec(raw);
-    const st = hass.states?.[id];
-    const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
-    idToName.set(id, displayName);
-  }
-  const perEntity = {};
-  for (const id of entityIds) perEntity[id] = [];
-  for (const arr of hist ?? []) {
-    if (!Array.isArray(arr) || arr.length === 0) continue;
-    const arrEntityId = histEntityId(arr[0]);
-    for (const s2 of arr) {
-      const id = histEntityId(s2) ?? arrEntityId;
-      if (!id || !perEntity[id]) continue;
-      const ts = histTimestampMs(s2);
-      if (ts == null) continue;
-      const raw = spec.attr ? histAttributes(s2)?.[spec.attr] : histState(s2);
-      const n3 = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
-      if (n3 == null) continue;
-      perEntity[id].push([ts, n3]);
-    }
-  }
-  for (const id of entityIds) perEntity[id].sort((a2, b2) => a2[0] - b2[0]);
-  if (spec.sample?.max_points && spec.sample.max_points > 1) {
-    const method = spec.sample.method ?? "mean";
-    for (const id of entityIds) {
-      perEntity[id] = downsample(
-        perEntity[id],
-        spec.sample.max_points,
-        method
-      );
-    }
-  }
-  const inferredMode = spec.mode ?? (entityIds.length > 1 ? "series" : "values");
-  let result;
-  if (inferredMode === "values") {
-    const id = entityIds[0];
-    result = perEntity[id] ?? [];
-  } else {
-    const series = entityIds.map((id) => {
-      const displayName = idToName.get(id) ?? id;
-      const base2 = {
-        name: displayName,
-        type: seriesType2,
-        showSymbol,
-        data: perEntity[id] ?? []
-      };
-      const overridesByName = spec.series_overrides?.[displayName];
-      const overridesById = spec.series_overrides?.[id];
-      const overrides = overridesByName ?? overridesById;
-      if (overrides && typeof overrides === "object") Object.assign(base2, overrides);
-      return base2;
-    });
-    result = series;
-  }
-  cache.set(cacheKey, {
-    ts: nowMs,
-    value: result,
-    expiresAt: nowMs + cacheSeconds * 1e3
-  });
-  return result;
-}
-__name(fetchHistory, "fetchHistory");
+__name(safeResize, "safeResize");
 class EchartsRawCard extends i$1 {
   static {
     __name(this, "EchartsRawCard");
@@ -75544,10 +75581,7 @@ class EchartsRawCard extends i$1 {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
     this._resizeObserver = void 0;
-    try {
-      this._chart?.dispose();
-    } catch {
-    }
+    disposeChart(this._chart);
     this._chart = void 0;
     this._runId++;
   }
@@ -75560,51 +75594,37 @@ class EchartsRawCard extends i$1 {
   }
   // ---- NEW: size-safe init helpers ---------------------------------
   _getContainer() {
-    return this.renderRoot.querySelector(".echarts-container");
+    return getContainer(this.renderRoot);
   }
   _hasSize(el) {
-    return el.clientWidth > 0 && el.clientHeight > 0;
+    return hasSize(el);
   }
   _ensureChart() {
     const el = this._getContainer();
     if (!el) return;
     if (!this._hasSize(el)) return;
-    try {
-      const existing = getInstanceByDom(el);
-      if (existing) {
-        this._chart = existing;
-        return;
-      }
-    } catch {
+    const existing = getAttachedInstance(el);
+    if (existing) {
+      this._chart = existing;
+      return;
     }
     this._echartsTheme = this._desiredEchartsTheme(this.hass);
-    this._chart = init$1(el, this._echartsTheme, {
-      renderer: this._config?.renderer ?? "canvas"
-    });
+    this._chart = initChart(el, this._echartsTheme, this._config?.renderer ?? "canvas");
   }
   _recreateChartForTheme() {
     const el = this._getContainer();
     if (!el) return;
     if (!this._hasSize(el)) {
-      try {
-        this._chart?.dispose();
-      } catch {
-      }
+      disposeChart(this._chart);
       this._chart = void 0;
       this._echartsTheme = this._desiredEchartsTheme(this.hass);
       return;
     }
-    try {
-      this._chart?.dispose();
-    } catch {
-    }
+    disposeChart(this._chart);
     this._chart = void 0;
     this._ensureChart();
     if (this._chart) {
-      try {
-        this._chart.resize();
-      } catch {
-      }
+      safeResize(this._chart, el);
     }
   }
   firstUpdated() {
@@ -75614,15 +75634,8 @@ class EchartsRawCard extends i$1 {
       this._ensureChart();
       if (!this._chart) return;
       if (!this._hasSize(el)) return;
-      try {
-        this._chart.resize();
-      } catch {
-        try {
-          this._chart?.dispose();
-        } catch {
-        }
-        this._chart = void 0;
-      }
+      safeResize(this._chart, el);
+      if (!getAttachedInstance(el)) this._chart = void 0;
     }, "onResize");
     this._resizeObserver = new ResizeObserver(onResize);
     this._resizeObserver.observe(el);
@@ -75720,17 +75733,11 @@ class EchartsRawCard extends i$1 {
       const opts = { notMerge: true, lazyUpdate: true };
       this._chart.setOption(option, opts);
       this._snapshotFingerprints();
-      try {
-        this._chart.resize();
-      } catch {
-      }
+      safeResize(this._chart, el);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
-      try {
-        this._chart?.dispose();
-      } catch {
-      }
+      disposeChart(this._chart);
       this._chart = void 0;
       console.error("[echarts-raw-card] applyOption error:", err);
     } finally {

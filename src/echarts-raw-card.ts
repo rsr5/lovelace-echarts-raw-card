@@ -1,6 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { ECharts, EChartsOption, SetOptionOpts } from "echarts";
-import * as echarts from "echarts";
 import type { HomeAssistant, LovelaceCardConfig } from "./ha-types";
 
 import type {
@@ -32,7 +31,14 @@ import { deepResolveTokensAsync } from "./tokens/resolve";
 import { minHistoryCacheSecondsInOptionTree } from "./history/cache-ttl";
 import { fetchHistory } from "./history/fetch";
 
-import type {} from "./history/decode";
+import {
+  disposeChart,
+  getAttachedInstance,
+  getContainer,
+  hasSize,
+  initChart,
+  safeResize
+} from "./echarts/instance";
 
 /* ------------------------------------------------------------------
  * Guards + helpers
@@ -95,11 +101,7 @@ export class EchartsRawCard extends LitElement {
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
 
-    try {
-      this._chart?.dispose();
-    } catch {
-      // ignore
-    }
+    disposeChart(this._chart);
     this._chart = undefined;
 
     this._runId++;
@@ -118,11 +120,11 @@ export class EchartsRawCard extends LitElement {
   // ---- NEW: size-safe init helpers ---------------------------------
 
   private _getContainer(): HTMLDivElement | null {
-    return this.renderRoot.querySelector(".echarts-container") as HTMLDivElement | null;
+    return getContainer(this.renderRoot as ShadowRoot);
   }
 
   private _hasSize(el: HTMLElement): boolean {
-    return el.clientWidth > 0 && el.clientHeight > 0;
+    return hasSize(el);
   }
 
   private _ensureChart(): void {
@@ -133,21 +135,15 @@ export class EchartsRawCard extends LitElement {
     if (!this._hasSize(el)) return;
 
     // If a chart instance is already bound to this DOM node, reuse it.
-    try {
-      const existing = echarts.getInstanceByDom(el);
-      if (existing) {
-        this._chart = existing as unknown as ECharts;
-        return;
-      }
-    } catch {
-      // ignore
+    const existing = getAttachedInstance(el);
+    if (existing) {
+      this._chart = existing;
+      return;
     }
 
     // Create a new instance
     this._echartsTheme = this._desiredEchartsTheme(this.hass);
-    this._chart = echarts.init(el, this._echartsTheme, {
-      renderer: this._config?.renderer ?? "canvas"
-    });
+    this._chart = initChart(el, this._echartsTheme, this._config?.renderer ?? "canvas");
   }
 
   private _recreateChartForTheme(): void {
@@ -156,33 +152,21 @@ export class EchartsRawCard extends LitElement {
 
     // If not laid out, drop chart; observer will recreate later when size returns.
     if (!this._hasSize(el)) {
-      try {
-        this._chart?.dispose();
-      } catch {
-        // ignore
-      }
+      disposeChart(this._chart);
       this._chart = undefined;
       this._echartsTheme = this._desiredEchartsTheme(this.hass);
       return;
     }
 
     // Dispose old instance
-    try {
-      this._chart?.dispose();
-    } catch {
-      // ignore
-    }
+    disposeChart(this._chart);
     this._chart = undefined;
 
     // Create new instance safely
     this._ensureChart();
 
     if (this._chart) {
-      try {
-        (this._chart as ECharts).resize();
-      } catch {
-        // ignore
-      }
+      safeResize(this._chart, el);
     }
   }
 
@@ -200,17 +184,9 @@ export class EchartsRawCard extends LitElement {
       // If size is 0, DO NOT call resize()
       if (!this._hasSize(el)) return;
 
-      try {
-        this._chart.resize();
-      } catch {
-        // If resize throws, dispose and let next resize re-init cleanly
-        try {
-          this._chart?.dispose();
-        } catch {
-          // ignore
-        }
-        this._chart = undefined;
-      }
+      safeResize(this._chart, el);
+      // If safeResize disposed it (due to an exception), drop reference.
+      if (!getAttachedInstance(el)) this._chart = undefined;
     };
 
     this._resizeObserver = new ResizeObserver(onResize);
@@ -357,22 +333,14 @@ export class EchartsRawCard extends LitElement {
       this._snapshotFingerprints();
 
       // Resize once after setting option (helps when HA lays out late)
-      try {
-        this._chart.resize();
-      } catch {
-        // ignore
-      }
+      safeResize(this._chart, el);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error = msg;
 
       // DO NOT clear() here; it can wedge ECharts into a blank state during resize/layout churn.
       // If you want a hard reset, dispose and let the ResizeObserver recreate it.
-      try {
-        this._chart?.dispose();
-      } catch {
-        // ignore
-      }
+      disposeChart(this._chart);
       this._chart = undefined;
 
       // eslint-disable-next-line no-console
