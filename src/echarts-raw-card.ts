@@ -70,6 +70,9 @@ export class EchartsRawCard extends LitElement {
   private _chart?: ECharts;
   private _resizeObserver?: ResizeObserver;
 
+  private _isConnected = false;
+  private _onVisibilityOrPageShow?: () => void;
+
   private _watchedEntities = new Set<string>();
   private _lastFingerprints = new Map<string, string>();
 
@@ -139,6 +142,14 @@ export class EchartsRawCard extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._isConnected = false;
+
+    if (this._onVisibilityOrPageShow) {
+      window.removeEventListener("pageshow", this._onVisibilityOrPageShow);
+      document.removeEventListener("visibilitychange", this._onVisibilityOrPageShow);
+      this._onVisibilityOrPageShow = undefined;
+    }
+
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
 
@@ -146,6 +157,40 @@ export class EchartsRawCard extends LitElement {
     this._chart = undefined;
 
     this._runId++;
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._isConnected = true;
+
+    // When navigating between Lovelace views, cards can be kept alive and become
+    // hidden/shown without a full disconnect. ECharts frequently needs an
+    // explicit resize once the element is visible again; otherwise it can render
+    // as a blank canvas/SVG.
+    if (!this._onVisibilityOrPageShow) {
+      this._onVisibilityOrPageShow = () => {
+        if (!this._isConnected) return;
+
+        const el = this._getContainer();
+        if (!el) return;
+
+        // If we're still not laid out, let ResizeObserver handle it later.
+        if (!this._hasSize(el)) return;
+
+        // Ensure chart exists and then resize/apply option defensively.
+        this._ensureChart();
+        if (!this._chart) return;
+
+        safeResize(this._chart, el);
+
+        // If we have config but chart became detached/recreated, re-apply.
+        // This is safe due to the internal runId cancellation.
+        if (this._config?.option) this._applyOption();
+      };
+
+      window.addEventListener("pageshow", this._onVisibilityOrPageShow);
+      document.addEventListener("visibilitychange", this._onVisibilityOrPageShow);
+    }
   }
 
   // HA dark-mode helpers
@@ -228,6 +273,10 @@ export class EchartsRawCard extends LitElement {
       safeResize(this._chart, el);
       // If safeResize disposed it (due to an exception), drop reference.
       if (!getAttachedInstance(el)) this._chart = undefined;
+
+      // When HA navigates between views, the container can bounce through 0x0.
+      // After size returns, we may need to re-apply the option to avoid a blank chart.
+      if (this._chart && this._config?.option) this._applyOption();
     };
 
     this._resizeObserver = new ResizeObserver(onResize);

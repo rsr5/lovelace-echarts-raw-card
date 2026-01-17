@@ -75574,6 +75574,7 @@ class EchartsRawCard extends i$1 {
   constructor() {
     super(...arguments);
     this._runId = 0;
+    this._isConnected = false;
     this._watchedEntities = /* @__PURE__ */ new Set();
     this._lastFingerprints = /* @__PURE__ */ new Map();
     this._historyCache = /* @__PURE__ */ new Map();
@@ -75631,11 +75632,35 @@ class EchartsRawCard extends i$1 {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._isConnected = false;
+    if (this._onVisibilityOrPageShow) {
+      window.removeEventListener("pageshow", this._onVisibilityOrPageShow);
+      document.removeEventListener("visibilitychange", this._onVisibilityOrPageShow);
+      this._onVisibilityOrPageShow = void 0;
+    }
     this._resizeObserver?.disconnect();
     this._resizeObserver = void 0;
     disposeChart(this._chart);
     this._chart = void 0;
     this._runId++;
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this._isConnected = true;
+    if (!this._onVisibilityOrPageShow) {
+      this._onVisibilityOrPageShow = () => {
+        if (!this._isConnected) return;
+        const el = this._getContainer();
+        if (!el) return;
+        if (!this._hasSize(el)) return;
+        this._ensureChart();
+        if (!this._chart) return;
+        safeResize(this._chart, el);
+        if (this._config?.option) this._applyOption();
+      };
+      window.addEventListener("pageshow", this._onVisibilityOrPageShow);
+      document.addEventListener("visibilitychange", this._onVisibilityOrPageShow);
+    }
   }
   // HA dark-mode helpers
   _isHassDarkMode(hass) {
@@ -75688,6 +75713,7 @@ class EchartsRawCard extends i$1 {
       if (!this._hasSize(el)) return;
       safeResize(this._chart, el);
       if (!getAttachedInstance(el)) this._chart = void 0;
+      if (this._chart && this._config?.option) this._applyOption();
     }, "onResize");
     this._resizeObserver = new ResizeObserver(onResize);
     this._resizeObserver.observe(el);

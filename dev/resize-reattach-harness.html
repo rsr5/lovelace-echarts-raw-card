@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ECharts Raw Card – resize/reattach harness</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        margin: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      button {
+        padding: 8px 10px;
+      }
+      .wrap {
+        margin-top: 12px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .host {
+        border: 1px dashed #aaa;
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 10px;
+      }
+      .host.hidden {
+        display: none;
+      }
+      .size-small {
+        width: 320px;
+        height: 220px;
+      }
+      .size-large {
+        width: 760px;
+        height: 320px;
+      }
+    </style>
+    <script type="module">
+      import "../src/index.ts";
+
+      // Minimal stubs so the element can render outside HA.
+      customElements.define(
+        "ha-card",
+        class extends HTMLElement {
+          constructor() {
+            super();
+            this.style.display = "block";
+            this.style.border = "1px solid #ccc";
+            this.style.borderRadius = "12px";
+            this.style.padding = "10px";
+          }
+        }
+      );
+
+      const fakeHass = {
+        states: {},
+        themes: { darkMode: false }
+      };
+
+      const host = document.getElementById("host");
+      const container = document.getElementById("container");
+
+      let card;
+
+      function makeCard() {
+        const el = document.createElement("echarts-raw-card");
+        el.hass = fakeHass;
+        el.setConfig({
+          title: "Harness chart",
+          height: "100%",
+          renderer: "canvas",
+          option: {
+            animation: false,
+            xAxis: { type: "category", data: ["A", "B", "C", "D"] },
+            yAxis: { type: "value" },
+            series: [{ type: "line", data: [1, 3, 2, 4] }]
+          }
+        });
+        return el;
+      }
+
+      function mount() {
+        if (!card) card = makeCard();
+        container.innerHTML = "";
+        container.appendChild(card);
+      }
+
+      function unmount() {
+        container.innerHTML = "";
+      }
+
+      document.getElementById("btn-mount").addEventListener("click", mount);
+      document.getElementById("btn-unmount").addEventListener("click", unmount);
+
+      document.getElementById("btn-hide").addEventListener("click", () => host.classList.add("hidden"));
+      document.getElementById("btn-show").addEventListener("click", () => host.classList.remove("hidden"));
+
+      document.getElementById("btn-small").addEventListener("click", () => {
+        host.classList.remove("size-large");
+        host.classList.add("size-small");
+      });
+
+      document.getElementById("btn-large").addEventListener("click", () => {
+        host.classList.remove("size-small");
+        host.classList.add("size-large");
+      });
+
+      // start mounted
+      host.classList.add("size-large");
+      mount();
+    </script>
+  </head>
+  <body>
+    <h2>Resize / reattach harness</h2>
+    <div class="row">
+      <button id="btn-mount">Mount</button>
+      <button id="btn-unmount">Unmount</button>
+      <button id="btn-hide">Hide host</button>
+      <button id="btn-show">Show host</button>
+      <button id="btn-small">Small</button>
+      <button id="btn-large">Large</button>
+    </div>
+
+    <div class="wrap">
+      <div id="host" class="host">
+        <div id="container" style="height: 100%"></div>
+      </div>
+      <p style="margin: 10px 0 0 0; opacity: 0.75">
+        Expected: chart always reappears after Hide→Show, Small→Large, and Unmount→Mount.
+      </p>
+    </div>
+  </body>
+</html>
