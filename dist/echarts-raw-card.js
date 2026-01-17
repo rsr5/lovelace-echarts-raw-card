@@ -75584,7 +75584,8 @@ class EchartsRawCard extends i$1 {
       hass: { attribute: false },
       _config: { state: true },
       _error: { state: true },
-      _loading: { state: true }
+      _loading: { state: true },
+      _debugResolvedOptionText: { state: true }
     };
   }
   setConfig(config) {
@@ -75593,10 +75594,40 @@ class EchartsRawCard extends i$1 {
     this._config = { height: "300px", renderer: "canvas", ...config };
     this._error = void 0;
     this._loading = false;
+    this._debugResolvedOptionText = void 0;
     this._watchedEntities.clear();
     this._lastFingerprints.clear();
     this._nextHistoryAllowedMs = 0;
     this._echartsTheme = void 0;
+  }
+  _debugFlags() {
+    const dbg = this._config?.debug;
+    if (!dbg) return { showResolvedOption: false, logResolvedOption: false, maxChars: 5e4 };
+    if (dbg === true) return { showResolvedOption: true, logResolvedOption: true, maxChars: 5e4 };
+    const showResolvedOption = dbg.show_resolved_option ?? false;
+    const logResolvedOption = dbg.log_resolved_option ?? false;
+    const maxChars = typeof dbg.max_chars === "number" && dbg.max_chars > 0 ? dbg.max_chars : 5e4;
+    return { showResolvedOption, logResolvedOption, maxChars };
+  }
+  _safeStringify(value, maxChars) {
+    const seen = /* @__PURE__ */ new WeakSet();
+    const json = JSON.stringify(
+      value,
+      (_key, v4) => {
+        if (typeof v4 === "object" && v4 !== null) {
+          if (seen.has(v4)) return "[Circular]";
+          seen.add(v4);
+        }
+        if (typeof v4 === "bigint") return v4.toString();
+        if (typeof v4 === "function") return "[Function]";
+        return v4;
+      },
+      2
+    );
+    if (json.length <= maxChars) return json;
+    return `${json.slice(0, maxChars)}
+
+… [truncated: ${json.length - maxChars} chars omitted]`;
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -75731,6 +75762,16 @@ class EchartsRawCard extends i$1 {
       this._watchedEntities = watched;
       const opt = resolved;
       const option = opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor") ? resolved : { backgroundColor: "transparent", ...resolved };
+      const dbg = this._debugFlags();
+      if (dbg.showResolvedOption || dbg.logResolvedOption) {
+        const text = this._safeStringify(option, dbg.maxChars);
+        this._debugResolvedOptionText = text;
+        if (dbg.logResolvedOption) {
+          console.debug("[echarts-raw-card] resolved option:", option);
+        }
+      } else {
+        this._debugResolvedOptionText = void 0;
+      }
       const opts = { notMerge: true, lazyUpdate: true };
       this._chart.setOption(option, opts);
       snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
@@ -75750,6 +75791,7 @@ class EchartsRawCard extends i$1 {
   render() {
     if (!this._config) return A;
     const title = this._config.title ?? "";
+    const dbg = this._debugFlags();
     return b`
       <ha-card>
         ${title ? b`<div class="header">${title}</div>` : A}
@@ -75770,6 +75812,16 @@ class EchartsRawCard extends i$1 {
                 </div>
               ` : A}
         </div>
+
+        ${dbg.showResolvedOption && this._debugResolvedOptionText ? b`
+              <details class="debug">
+                <summary>Debug: resolved ECharts option</summary>
+                <div class="debug-hint">
+                  Tip: open this card in the editor and copy from below.
+                </div>
+                <pre class="debug-pre">${this._debugResolvedOptionText}</pre>
+              </details>
+            ` : A}
       </ha-card>
     `;
   }
@@ -75842,6 +75894,43 @@ class EchartsRawCard extends i$1 {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
+      font-family: var(
+        --code-font-family,
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+      );
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    details.debug {
+      margin: 10px 16px 14px 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 18%, transparent);
+      background: color-mix(in srgb, var(--card-background-color) 85%, #000 0%);
+    }
+    details.debug > summary {
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    .debug-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.75;
+    }
+    .debug-pre {
+      margin: 10px 0 0 0;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre;
       font-family: var(
         --code-font-family,
         ui-monospace,
