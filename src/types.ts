@@ -6,6 +6,13 @@ export type EchartsRawCardConfig = LovelaceCardConfig & {
   height?: string;
   renderer?: "canvas" | "svg";
   title?: string;
+  debug?:
+    | boolean
+    | {
+        show_resolved_option?: boolean;
+        log_resolved_option?: boolean;
+        max_chars?: number;
+      };
 };
 
 /* ------------------------------------------------------------------

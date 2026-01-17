@@ -38,6 +38,29 @@ Unlike most chart cards, this one does **not** invent a DSL for charts — you w
 
 ---
 
+## Examples
+
+This repo includes a demo dashboard you can paste into Home Assistant:
+
+- `examples/dashboard-demo.yaml`
+
+### Using the dashboard example
+
+1. In Home Assistant, go to **Settings → Dashboards → Add Dashboard**.
+2. Choose **New dashboard from YAML**.
+3. Paste the contents of `examples/dashboard-demo.yaml`.
+
+### Pointing HA at your local dev build
+
+Home Assistant **Resources** must reference a JavaScript module file (not the dev server root).
+
+- Dev server URL (fast iteration):
+  - `http://YOUR_MAC_LAN_IP:5173/src/index.ts`
+- Built file (copy into `/config/www/`):
+  - `/local/echarts-raw-card.js`
+
+---
+
 ## Basic Usage
 
 ```yaml
@@ -121,7 +144,12 @@ option:
 |------|--------|
 | `pairs` | `{ name, value }[]` |
 | `names` | `string[]` |
-| `values` | `number[]` |
+| `values` | `unknown[]` (use `coerce: number` to ensure numeric output) |
+
+### `$data` notes
+
+- Unavailable/unknown entities are **excluded by default** (`exclude_unavailable: true`).
+- `include_unavailable` exists for backwards compatibility, but `exclude_unavailable` is the preferred flag.
 
 ---
 
@@ -167,6 +195,12 @@ option:
       mode: series
       series_type: line
       show_symbol: false
+
+> If `mode` is omitted, it defaults to:
+> - `values` when one entity is requested
+> - `series` when multiple entities are requested
+
+> If `coerce` is omitted for `$history`, it behaves as `number`.
 ```
 
 ---
@@ -234,6 +268,25 @@ No config required.
 renderer: canvas   # default
 # or
 renderer: svg
+
+---
+
+## Debugging
+
+You can enable debug output to help diagnose token resolution and the final ECharts option sent to the chart.
+
+```yaml
+debug: true
+```
+
+Or use the object form to control behavior:
+
+```yaml
+debug:
+  show_resolved_option: true   # show the resolved option JSON in the card UI
+  log_resolved_option: true    # print the resolved option JSON to the browser console
+  max_chars: 50000             # safety limit for the resolved JSON text
+```
 ```
 
 ---

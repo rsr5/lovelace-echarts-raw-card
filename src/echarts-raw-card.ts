@@ -55,7 +55,8 @@ export class EchartsRawCard extends LitElement {
     hass: { attribute: false },
     _config: { state: true },
     _error: { state: true },
-    _loading: { state: true }
+    _loading: { state: true },
+    _debugResolvedOptionText: { state: true }
   };
 
   public hass?: HomeAssistant;
@@ -63,6 +64,7 @@ export class EchartsRawCard extends LitElement {
   private _config?: EchartsRawCardConfig;
   private _error?: string;
   private _loading?: boolean;
+  private _debugResolvedOptionText?: string;
   private _runId = 0;
 
   private _chart?: ECharts;
@@ -88,6 +90,7 @@ export class EchartsRawCard extends LitElement {
 
     this._error = undefined;
     this._loading = false;
+  this._debugResolvedOptionText = undefined;
     this._watchedEntities.clear();
     this._lastFingerprints.clear();
 
@@ -96,6 +99,42 @@ export class EchartsRawCard extends LitElement {
 
     // ensure theme is re-evaluated after config changes
     this._echartsTheme = undefined;
+  }
+
+  private _debugFlags(): { showResolvedOption: boolean; logResolvedOption: boolean; maxChars: number } {
+    const dbg = this._config?.debug;
+
+    // default: off
+    if (!dbg) return { showResolvedOption: false, logResolvedOption: false, maxChars: 50_000 };
+
+    // debug: true => enable both
+    if (dbg === true) return { showResolvedOption: true, logResolvedOption: true, maxChars: 50_000 };
+
+    const showResolvedOption = dbg.show_resolved_option ?? false;
+    const logResolvedOption = dbg.log_resolved_option ?? false;
+    const maxChars = typeof dbg.max_chars === "number" && dbg.max_chars > 0 ? dbg.max_chars : 50_000;
+    return { showResolvedOption, logResolvedOption, maxChars };
+  }
+
+  private _safeStringify(value: unknown, maxChars: number): string {
+    const seen = new WeakSet<object>();
+
+    const json = JSON.stringify(
+      value,
+      (_key, v) => {
+        if (typeof v === "object" && v !== null) {
+          if (seen.has(v as object)) return "[Circular]";
+          seen.add(v as object);
+        }
+        if (typeof v === "bigint") return v.toString();
+        if (typeof v === "function") return "[Function]";
+        return v;
+      },
+      2
+    );
+
+    if (json.length <= maxChars) return json;
+    return `${json.slice(0, maxChars)}\n\n… [truncated: ${json.length - maxChars} chars omitted]`;
   }
 
   disconnectedCallback(): void {
@@ -306,6 +345,19 @@ export class EchartsRawCard extends LitElement {
           ? resolved
           : ({ backgroundColor: "transparent", ...resolved } as EChartsOption);
 
+      // Debug: store and/or log the *resolved* option (after token resolution)
+      const dbg = this._debugFlags();
+      if (dbg.showResolvedOption || dbg.logResolvedOption) {
+        const text = this._safeStringify(option, dbg.maxChars);
+        this._debugResolvedOptionText = text;
+        if (dbg.logResolvedOption) {
+          // eslint-disable-next-line no-console
+          console.debug("[echarts-raw-card] resolved option:", option);
+        }
+      } else {
+        this._debugResolvedOptionText = undefined;
+      }
+
       const opts: SetOptionOpts = { notMerge: true, lazyUpdate: true };
 
       this._chart.setOption(option, opts);
@@ -334,6 +386,7 @@ export class EchartsRawCard extends LitElement {
   protected render() {
     if (!this._config) return nothing;
     const title = (this._config.title as string | undefined) ?? "";
+    const dbg = this._debugFlags();
 
     return html`
       <ha-card>
@@ -359,6 +412,18 @@ export class EchartsRawCard extends LitElement {
               `
             : nothing}
         </div>
+
+        ${dbg.showResolvedOption && this._debugResolvedOptionText
+          ? html`
+              <details class="debug">
+                <summary>Debug: resolved ECharts option</summary>
+                <div class="debug-hint">
+                  Tip: open this card in the editor and copy from below.
+                </div>
+                <pre class="debug-pre">${this._debugResolvedOptionText}</pre>
+              </details>
+            `
+          : nothing}
       </ha-card>
     `;
   }
@@ -431,6 +496,43 @@ export class EchartsRawCard extends LitElement {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
+      font-family: var(
+        --code-font-family,
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+      );
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    details.debug {
+      margin: 10px 16px 14px 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 18%, transparent);
+      background: color-mix(in srgb, var(--card-background-color) 85%, #000 0%);
+    }
+    details.debug > summary {
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    .debug-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.75;
+    }
+    .debug-pre {
+      margin: 10px 0 0 0;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre;
       font-family: var(
         --code-font-family,
         ui-monospace,
