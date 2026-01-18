@@ -81,6 +81,47 @@ option:
 
 ---
 
+## Debugging
+
+Add `debug` at the **top level of the card config** (a sibling of `option`, not inside it).
+
+### Quick enable
+
+```yaml
+type: custom:echarts-raw-card
+debug: true
+option:
+  ...
+```
+
+### Fine-grained debug
+
+```yaml
+type: custom:echarts-raw-card
+debug:
+  show_resolved_option: true
+  log_resolved_option: true
+  max_chars: 20000
+option:
+  ...
+```
+
+### Where the output goes
+
+- **In-card panel**: when `show_resolved_option` is enabled, the card shows an expandable
+  "Debug: resolved ECharts option" section.
+- **Browser console**: when `log_resolved_option` is enabled, the card logs the resolved
+  option with `console.debug`.
+
+Notes:
+
+- Some browsers hide `console.debug(...)` unless the console log level includes **Verbose**.
+- The card only produces "resolved option" debug after it can render (the container must have
+  a non-zero size). During Lovelace layout/view transitions the card can temporarily be 0×0, in
+  which case option application (and debug) is deferred.
+
+---
+
 ## Entity Tokens (`$entity`)
 
 You can bind **any Home Assistant entity** directly into the chart.

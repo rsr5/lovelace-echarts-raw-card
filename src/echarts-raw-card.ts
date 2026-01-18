@@ -96,7 +96,7 @@ export class EchartsRawCard extends LitElement {
     this._error = undefined;
     this._warning = undefined;
     this._loading = false;
-  this._debugResolvedOptionText = undefined;
+    this._debugResolvedOptionText = undefined;
     this._watchedEntities.clear();
     this._lastFingerprints.clear();
 
@@ -260,6 +260,13 @@ export class EchartsRawCard extends LitElement {
   }
 
   protected firstUpdated(): void {
+    // If debug is enabled, log once early so users can confirm config is being read.
+    // (applyOption can be deferred until the container has a real size.)
+    if (this._config?.debug) {
+      // eslint-disable-next-line no-console
+      console.info("[echarts-raw-card] debug enabled:", this._config.debug);
+    }
+
     const el = this._getContainer();
     if (!el) return;
 
@@ -361,6 +368,32 @@ export class EchartsRawCard extends LitElement {
     void this._applyOptionAsync();
   }
 
+  private _findFunctions(value: unknown, path = "option"): string[] {
+    const out: string[] = [];
+    const seen = new WeakSet<object>();
+
+    const walk = (v: unknown, p: string) => {
+      if (typeof v === "function") {
+        out.push(p);
+        return;
+      }
+      if (typeof v !== "object" || v === null) return;
+      if (seen.has(v as object)) return;
+      seen.add(v as object);
+
+      if (Array.isArray(v)) {
+        v.forEach((item, idx) => walk(item, `${p}[${idx}]`));
+        return;
+      }
+      for (const [k, child] of Object.entries(v as Record<string, unknown>)) {
+        walk(child, `${p}.${k}`);
+      }
+    };
+
+    walk(value, path);
+    return out;
+  }
+
   private async _applyOptionAsync(): Promise<void> {
     const hass = this.hass;
     const config = this._config;
@@ -387,7 +420,7 @@ export class EchartsRawCard extends LitElement {
     }
 
     this._error = undefined;
-  this._warning = undefined;
+    this._warning = undefined;
 
     try {
       const watched = new Set<string>();
@@ -407,13 +440,33 @@ export class EchartsRawCard extends LitElement {
       if (!this._chart) return;
 
       this._watchedEntities = watched;
-  this._warning = undefined;
+    this._warning = undefined;
 
       const opt = resolved as Record<string, unknown>;
       const option: EChartsOption =
         opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor")
           ? resolved
           : ({ backgroundColor: "transparent", ...resolved } as EChartsOption);
+
+      // YAML card configs can't express real JS functions; users often paste
+      // `(p) => ...` expecting it to work. If we detect any functions, surface
+      // a clear warning because ECharts can fail silently and render blank.
+      const fnPaths = this._findFunctions(option);
+      if (fnPaths.length > 0) {
+        const msg =
+          `This card config contains JavaScript functions at: ${fnPaths.join(", ")}. ` +
+          `Home Assistant YAML config does not support real function values inside the ` +
+          `ECharts option. Use string templates supported by ECharts, or move advanced ` +
+          `formatting into a token/transform. Disabling those functions should make the ` +
+          `chart render.`;
+
+        this._warning = `[echarts-raw-card] ${msg}`;
+
+        if (this._debugFlags().logResolvedOption) {
+          // eslint-disable-next-line no-console
+          console.warn("[echarts-raw-card]", msg);
+        }
+      }
 
       // Debug: store and/or log the *resolved* option (after token resolution)
       const dbg = this._debugFlags();
@@ -431,7 +484,7 @@ export class EchartsRawCard extends LitElement {
       const opts: SetOptionOpts = { notMerge: true, lazyUpdate: true };
 
       this._chart.setOption(option, opts);
-  snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
+    snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
 
       // Resize once after setting option (helps when HA lays out late)
       safeResize(this._chart, el);

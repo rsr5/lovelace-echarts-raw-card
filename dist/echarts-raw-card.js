@@ -75723,6 +75723,9 @@ class EchartsRawCard extends i$1 {
     }
   }
   firstUpdated() {
+    if (this._config?.debug) {
+      console.info("[echarts-raw-card] debug enabled:", this._config.debug);
+    }
     const el = this._getContainer();
     if (!el) return;
     const onResize = /* @__PURE__ */ __name(() => {
@@ -75787,6 +75790,28 @@ class EchartsRawCard extends i$1 {
   _applyOption() {
     void this._applyOptionAsync();
   }
+  _findFunctions(value, path = "option") {
+    const out2 = [];
+    const seen = /* @__PURE__ */ new WeakSet();
+    const walk = /* @__PURE__ */ __name((v4, p2) => {
+      if (typeof v4 === "function") {
+        out2.push(p2);
+        return;
+      }
+      if (typeof v4 !== "object" || v4 === null) return;
+      if (seen.has(v4)) return;
+      seen.add(v4);
+      if (Array.isArray(v4)) {
+        v4.forEach((item, idx) => walk(item, `${p2}[${idx}]`));
+        return;
+      }
+      for (const [k2, child] of Object.entries(v4)) {
+        walk(child, `${p2}.${k2}`);
+      }
+    }, "walk");
+    walk(value, path);
+    return out2;
+  }
   async _applyOptionAsync() {
     const hass = this.hass;
     const config = this._config;
@@ -75819,6 +75844,14 @@ class EchartsRawCard extends i$1 {
       this._warning = void 0;
       const opt = resolved;
       const option = opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor") ? resolved : { backgroundColor: "transparent", ...resolved };
+      const fnPaths = this._findFunctions(option);
+      if (fnPaths.length > 0) {
+        const msg = `This card config contains JavaScript functions at: ${fnPaths.join(", ")}. Home Assistant YAML config does not support real function values inside the ECharts option. Use string templates supported by ECharts, or move advanced formatting into a token/transform. Disabling those functions should make the chart render.`;
+        this._warning = `[echarts-raw-card] ${msg}`;
+        if (this._debugFlags().logResolvedOption) {
+          console.warn("[echarts-raw-card]", msg);
+        }
+      }
       const dbg = this._debugFlags();
       if (dbg.showResolvedOption || dbg.logResolvedOption) {
         const text = this._safeStringify(option, dbg.maxChars);
