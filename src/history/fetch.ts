@@ -49,6 +49,25 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
       ? parseTime(spec.start, endMs - 24 * 3600_000)
       : endMs - (spec.hours ?? 24) * 3600_000;
 
+  // Guard: invalid timestamps will crash Date#toISOString with RangeError: Invalid time value.
+  // We throw a tagged error so the card can downgrade it to a warning and drop the value.
+  if (!Number.isFinite(endMs) || !Number.isFinite(startMs)) {
+    const details = {
+      start: spec.start,
+      end: spec.end,
+      hours: spec.hours,
+      nowMs,
+      computed: { startMs, endMs }
+    };
+    const err = new Error(
+      `[echarts-raw-card] Invalid $history time range; start/end must be finite epoch-ms numbers. Details: ${JSON.stringify(
+        details
+      )}`
+    ) as Error & { code?: string };
+    err.code = "ECHARTS_RAW_CARD_INVALID_HISTORY_TIME";
+    throw err;
+  }
+
   for (const e of spec.entities ?? []) watchedEntities.add(normalizeEntitySpec(e).id);
 
   const cacheKey = historyCacheKey(spec, startMs, endMs);

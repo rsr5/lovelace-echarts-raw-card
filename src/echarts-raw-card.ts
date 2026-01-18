@@ -55,6 +55,7 @@ export class EchartsRawCard extends LitElement {
     hass: { attribute: false },
     _config: { state: true },
     _error: { state: true },
+    _warning: { state: true },
     _loading: { state: true },
     _debugResolvedOptionText: { state: true }
   };
@@ -63,6 +64,7 @@ export class EchartsRawCard extends LitElement {
 
   private _config?: EchartsRawCardConfig;
   private _error?: string;
+  private _warning?: string;
   private _loading?: boolean;
   private _debugResolvedOptionText?: string;
   private _runId = 0;
@@ -92,6 +94,7 @@ export class EchartsRawCard extends LitElement {
     this._config = { height: "300px", renderer: "canvas", ...config } as EchartsRawCardConfig;
 
     this._error = undefined;
+    this._warning = undefined;
     this._loading = false;
   this._debugResolvedOptionText = undefined;
     this._watchedEntities.clear();
@@ -329,13 +332,29 @@ export class EchartsRawCard extends LitElement {
   private async _fetchHistory(spec: HistoryGenerator["$history"]): Promise<unknown> {
     if (!this.hass) return [];
 
-    return fetchHistory({
-      hass: this.hass,
-      spec,
-      watchedEntities: this._watchedEntities,
-      cache: this._historyCache,
-      nowMs: Date.now()
-    });
+    try {
+      return await fetchHistory({
+        hass: this.hass,
+        spec,
+        watchedEntities: this._watchedEntities,
+        cache: this._historyCache,
+        nowMs: Date.now()
+      });
+    } catch (err) {
+      const e = err as Error & { code?: string };
+      if (e?.code === "ECHARTS_RAW_CARD_INVALID_HISTORY_TIME") {
+        // Non-fatal: drop this $history value, keep rendering the rest of the option.
+        this._warning = e.message;
+
+        // Preserve the expected data shape as best we can.
+        // - mode=values expects array of [ts,value]
+        // - mode=series expects array of series objects
+        const mode = spec.mode ?? (spec.entities && spec.entities.length > 1 ? "series" : "values");
+        if (mode === "series") return [];
+        return [];
+      }
+      throw err;
+    }
   }
 
   private _applyOption(): void {
@@ -368,6 +387,7 @@ export class EchartsRawCard extends LitElement {
     }
 
     this._error = undefined;
+  this._warning = undefined;
 
     try {
       const watched = new Set<string>();
@@ -387,6 +407,7 @@ export class EchartsRawCard extends LitElement {
       if (!this._chart) return;
 
       this._watchedEntities = watched;
+  this._warning = undefined;
 
       const opt = resolved as Record<string, unknown>;
       const option: EChartsOption =
@@ -446,6 +467,15 @@ export class EchartsRawCard extends LitElement {
               <div class="error">
                 <div class="error-title">ECharts configuration error</div>
                 <pre class="error-details">${this._error}</pre>
+              </div>
+            `
+          : nothing}
+
+        ${this._warning
+          ? html`
+              <div class="warning">
+                <div class="warning-title">Warning</div>
+                <pre class="warning-details">${this._warning}</pre>
               </div>
             `
           : nothing}
@@ -558,6 +588,37 @@ export class EchartsRawCard extends LitElement {
       );
       font-size: 12px;
       line-height: 1.35;
+    }
+
+    .warning {
+      margin: 12px 16px 0 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--warning-color, #b26a00);
+      background: color-mix(in srgb, var(--warning-color, #b26a00) 10%, transparent);
+    }
+    .warning-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .warning-details {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(
+        --code-font-family,
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+      );
+      font-size: 12px;
+      line-height: 1.35;
+      opacity: 0.9;
     }
 
     details.debug {

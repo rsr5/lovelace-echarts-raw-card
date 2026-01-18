@@ -840,6 +840,22 @@ async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }) {
     endMs = Math.floor(endMs / bucket) * bucket;
   }
   const startMs = spec.start != null ? parseTime(spec.start, endMs - 24 * 36e5) : endMs - (spec.hours ?? 24) * 36e5;
+  if (!Number.isFinite(endMs) || !Number.isFinite(startMs)) {
+    const details = {
+      start: spec.start,
+      end: spec.end,
+      hours: spec.hours,
+      nowMs,
+      computed: { startMs, endMs }
+    };
+    const err = new Error(
+      `[echarts-raw-card] Invalid $history time range; start/end must be finite epoch-ms numbers. Details: ${JSON.stringify(
+        details
+      )}`
+    );
+    err.code = "ECHARTS_RAW_CARD_INVALID_HISTORY_TIME";
+    throw err;
+  }
   for (const e2 of spec.entities ?? []) watchedEntities.add(normalizeEntitySpec(e2).id);
   const cacheKey = historyCacheKey(spec, startMs, endMs);
   const cached = cache.get(cacheKey);
@@ -75585,6 +75601,7 @@ class EchartsRawCard extends i$1 {
       hass: { attribute: false },
       _config: { state: true },
       _error: { state: true },
+      _warning: { state: true },
       _loading: { state: true },
       _debugResolvedOptionText: { state: true }
     };
@@ -75594,6 +75611,7 @@ class EchartsRawCard extends i$1 {
     if (!("option" in config)) throw new Error("Missing required `option`");
     this._config = { height: "300px", renderer: "canvas", ...config };
     this._error = void 0;
+    this._warning = void 0;
     this._loading = false;
     this._debugResolvedOptionText = void 0;
     this._watchedEntities.clear();
@@ -75747,13 +75765,24 @@ class EchartsRawCard extends i$1 {
   }
   async _fetchHistory(spec) {
     if (!this.hass) return [];
-    return fetchHistory({
-      hass: this.hass,
-      spec,
-      watchedEntities: this._watchedEntities,
-      cache: this._historyCache,
-      nowMs: Date.now()
-    });
+    try {
+      return await fetchHistory({
+        hass: this.hass,
+        spec,
+        watchedEntities: this._watchedEntities,
+        cache: this._historyCache,
+        nowMs: Date.now()
+      });
+    } catch (err) {
+      const e2 = err;
+      if (e2?.code === "ECHARTS_RAW_CARD_INVALID_HISTORY_TIME") {
+        this._warning = e2.message;
+        const mode = spec.mode ?? (spec.entities && spec.entities.length > 1 ? "series" : "values");
+        if (mode === "series") return [];
+        return [];
+      }
+      throw err;
+    }
   }
   _applyOption() {
     void this._applyOptionAsync();
@@ -75774,6 +75803,7 @@ class EchartsRawCard extends i$1 {
       this._loading = true;
     }
     this._error = void 0;
+    this._warning = void 0;
     try {
       const watched = /* @__PURE__ */ new Set();
       const resolved = await deepResolveTokensAsync(
@@ -75786,6 +75816,7 @@ class EchartsRawCard extends i$1 {
       this._ensureChart();
       if (!this._chart) return;
       this._watchedEntities = watched;
+      this._warning = void 0;
       const opt = resolved;
       const option = opt && Object.prototype.hasOwnProperty.call(opt, "backgroundColor") ? resolved : { backgroundColor: "transparent", ...resolved };
       const dbg = this._debugFlags();
@@ -75826,6 +75857,13 @@ class EchartsRawCard extends i$1 {
               <div class="error">
                 <div class="error-title">ECharts configuration error</div>
                 <pre class="error-details">${this._error}</pre>
+              </div>
+            ` : A}
+
+        ${this._warning ? b`
+              <div class="warning">
+                <div class="warning-title">Warning</div>
+                <pre class="warning-details">${this._warning}</pre>
               </div>
             ` : A}
 
@@ -75933,6 +75971,37 @@ class EchartsRawCard extends i$1 {
       );
       font-size: 12px;
       line-height: 1.35;
+    }
+
+    .warning {
+      margin: 12px 16px 0 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--warning-color, #b26a00);
+      background: color-mix(in srgb, var(--warning-color, #b26a00) 10%, transparent);
+    }
+    .warning-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .warning-details {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(
+        --code-font-family,
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+      );
+      font-size: 12px;
+      line-height: 1.35;
+      opacity: 0.9;
     }
 
     details.debug {
