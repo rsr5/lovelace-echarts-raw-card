@@ -40,7 +40,11 @@ export function applyNumberTransforms(value: unknown, token: TokenObject): unkno
     // Normalise string shorthand ("log", "sqrt", "pow") → object form
     const m: TokenObject["$map"] =
       typeof raw === "string"
-        ? (raw === "log" ? { type: "log" } : raw === "sqrt" ? { type: "sqrt" } : undefined)
+        ? raw === "log"
+          ? { type: "log" }
+          : raw === "sqrt"
+            ? { type: "sqrt" }
+            : undefined
         : raw;
     if (m) {
       if (m.type === "log") {
