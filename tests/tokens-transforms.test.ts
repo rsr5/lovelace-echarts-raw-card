@@ -262,52 +262,82 @@ describe("coerceHistoryPointNumber", () => {
 
   describe("binary sensor states (on/off/home/open etc)", () => {
     it("maps 'on' → 1", () => {
-      expect(coerceHistoryPointNumber("on", "binary_sensor.motion", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("on", "binary_sensor.motion", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'off' → 0", () => {
-      expect(coerceHistoryPointNumber("off", "binary_sensor.motion", undefined, undefined, undefined)).toBe(0);
+      expect(
+        coerceHistoryPointNumber("off", "binary_sensor.motion", undefined, undefined, undefined),
+      ).toBe(0);
     });
 
     it("maps 'On' (case-insensitive) → 1", () => {
-      expect(coerceHistoryPointNumber("On", "binary_sensor.door", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("On", "binary_sensor.door", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'home' → 1 for device_tracker", () => {
-      expect(coerceHistoryPointNumber("home", "device_tracker.phone", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("home", "device_tracker.phone", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'not_home' → 0 for device_tracker", () => {
-      expect(coerceHistoryPointNumber("not_home", "device_tracker.phone", undefined, undefined, undefined)).toBe(0);
+      expect(
+        coerceHistoryPointNumber(
+          "not_home",
+          "device_tracker.phone",
+          undefined,
+          undefined,
+          undefined,
+        ),
+      ).toBe(0);
     });
 
     it("maps 'open' → 1 for cover/door", () => {
-      expect(coerceHistoryPointNumber("open", "binary_sensor.garage", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("open", "binary_sensor.garage", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'closed' → 0 for cover/door", () => {
-      expect(coerceHistoryPointNumber("closed", "binary_sensor.garage", undefined, undefined, undefined)).toBe(0);
+      expect(
+        coerceHistoryPointNumber("closed", "binary_sensor.garage", undefined, undefined, undefined),
+      ).toBe(0);
     });
 
     it("maps 'true' → 1", () => {
-      expect(coerceHistoryPointNumber("true", "binary_sensor.x", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("true", "binary_sensor.x", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'false' → 0", () => {
-      expect(coerceHistoryPointNumber("false", "binary_sensor.x", undefined, undefined, undefined)).toBe(0);
+      expect(
+        coerceHistoryPointNumber("false", "binary_sensor.x", undefined, undefined, undefined),
+      ).toBe(0);
     });
 
     it("maps 'yes' → 1", () => {
-      expect(coerceHistoryPointNumber("yes", "binary_sensor.x", undefined, undefined, undefined)).toBe(1);
+      expect(
+        coerceHistoryPointNumber("yes", "binary_sensor.x", undefined, undefined, undefined),
+      ).toBe(1);
     });
 
     it("maps 'no' → 0", () => {
-      expect(coerceHistoryPointNumber("no", "binary_sensor.x", undefined, undefined, undefined)).toBe(0);
+      expect(
+        coerceHistoryPointNumber("no", "binary_sensor.x", undefined, undefined, undefined),
+      ).toBe(0);
     });
 
     it("applies transforms to binary-mapped value", () => {
       // on → 1, then scale by 100 → 100
-      expect(coerceHistoryPointNumber("on", "binary_sensor.x", 0, "number", { scale: 100 })).toBe(100);
+      expect(coerceHistoryPointNumber("on", "binary_sensor.x", 0, "number", { scale: 100 })).toBe(
+        100,
+      );
     });
 
     it("does not interfere with normal numeric strings", () => {
