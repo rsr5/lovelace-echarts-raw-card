@@ -1,8 +1,21 @@
 # ECharts Raw Card (Lovelace)
 
+[![CI](https://github.com/rsr5/lovelace-echarts-raw-card/actions/workflows/ci.yml/badge.svg)](https://github.com/rsr5/lovelace-echarts-raw-card/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
+
 A **power-user Home Assistant Lovelace card** that renders **raw Apache ECharts options**, with **native Home Assistant entity binding**, **history queries**, **transforms**, and **automatic dark-mode support**.
 
 Unlike most chart cards, this one does **not** invent a DSL for charts — you write **real ECharts `option` objects**, and this card resolves Home Assistant data into them.
+
+<p align="center">
+  <img src="docs/images/hero.png" alt="ECharts Raw Card demos" width="720" />
+</p>
+
+<p align="center">
+  <a href="https://rsr5.github.io/lovelace-echarts-raw-card/">📖 Full Documentation &amp; Examples</a> ·
+  <a href="https://echarts.apache.org/examples/">ECharts Gallery ↗</a>
+</p>
 
 ---
 
@@ -13,7 +26,8 @@ Unlike most chart cards, this one does **not** invent a DSL for charts — you w
 - ✅ Bulk entity extraction via `$data`
 - ✅ Historical data via `$history`
 - ✅ Built-in transforms (log, scale, clamp, round, etc.)
-- ✅ Efficient caching + throttling for history queries
+- ✅ Attribute reading via `$attr`
+- ✅ Efficient LRU caching + throttling for history queries
 - ✅ Automatic dark/light mode switching (uses ECharts `dark` theme)
 - ✅ Canvas or SVG renderer
 - ✅ Zero external dependencies beyond ECharts
@@ -34,34 +48,29 @@ Unlike most chart cards, this one does **not** invent a DSL for charts — you w
      ```
    - Type: **JavaScript Module**
 
-> ℹ️ The `/hacsfiles/...` path depends on the repository name.
+---
+
+## Demo Gallery
+
+<table>
+  <tr>
+    <td align="center"><strong>🕸️ Radar</strong><br/>Room Climate<br/><img src="docs/images/radar.png" width="280" /></td>
+    <td align="center"><strong>🌡️ Gauges</strong><br/>System Health<br/><img src="docs/images/gauges.png" width="280" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>🍩 Donut</strong><br/>Power Sources<br/><img src="docs/images/donut.png" width="280" /></td>
+    <td align="center"><strong>🌸 Nightingale</strong><br/>Energy Today<br/><img src="docs/images/nightingale.png" width="280" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><strong>⚡ Agile Pricing</strong><br/>Octopus half-hourly rates with dynamic average<br/><img src="docs/images/prices.png" width="420" /></td>
+  </tr>
+</table>
+
+> All charts are **live** — data comes from real Home Assistant entities via `$entity` and `$attr` tokens. See the [full documentation](https://rsr5.github.io/lovelace-echarts-raw-card/) for complete YAML configs.
 
 ---
 
-## Examples
-
-This repo includes a demo dashboard you can paste into Home Assistant:
-
-- `examples/dashboard-demo.yaml`
-
-### Using the dashboard example
-
-1. In Home Assistant, go to **Settings → Dashboards → Add Dashboard**.
-2. Choose **New dashboard from YAML**.
-3. Paste the contents of `examples/dashboard-demo.yaml`.
-
-### Pointing HA at your local dev build
-
-Home Assistant **Resources** must reference a JavaScript module file (not the dev server root).
-
-- Dev server URL (fast iteration):
-  - `http://YOUR_MAC_LAN_IP:5173/src/index.ts`
-- Built file (copy into `/config/www/`):
-  - `/local/echarts-raw-card.js`
-
----
-
-## Basic Usage
+## Quick Start
 
 ```yaml
 type: custom:echarts-raw-card
@@ -236,13 +245,10 @@ option:
       mode: series
       series_type: line
       show_symbol: false
-
-> If `mode` is omitted, it defaults to:
-> - `values` when one entity is requested
-> - `series` when multiple entities are requested
-
-> If `coerce` is omitted for `$history`, it behaves as `number`.
 ```
+
+> If `mode` is omitted, it defaults to `values` for one entity or `series` for multiple.
+> If `coerce` is omitted for `$history`, it behaves as `number`.
 
 ---
 
@@ -309,26 +315,13 @@ No config required.
 renderer: canvas   # default
 # or
 renderer: svg
+```
 
 ---
 
-## Debugging
+## Documentation
 
-You can enable debug output to help diagnose token resolution and the final ECharts option sent to the chart.
-
-```yaml
-debug: true
-```
-
-Or use the object form to control behavior:
-
-```yaml
-debug:
-  show_resolved_option: true   # show the resolved option JSON in the card UI
-  log_resolved_option: true    # print the resolved option JSON to the browser console
-  max_chars: 50000             # safety limit for the resolved JSON text
-```
-```
+For **complete reference**, chart recipes, and full YAML configs, see the **[documentation site](https://rsr5.github.io/lovelace-echarts-raw-card/)**.
 
 ---
 

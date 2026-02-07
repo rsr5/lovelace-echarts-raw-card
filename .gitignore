@@ -4,4 +4,6 @@ node_modules/
 dist/*.map
 PLAN.md
 CODE_REVIEW.md
+DEMO_PLAN.md
+FUTURE_PLANS.md
 examples

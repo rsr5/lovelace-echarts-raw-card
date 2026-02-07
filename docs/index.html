@@ -2,30 +2,1652 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Lovelace ECharts Raw Card</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ECharts Raw Card — Home Assistant Lovelace</title>
   <meta name="description"
-        content="A Home Assistant Lovelace custom card for rendering raw Apache ECharts option objects.">
+        content="A power-user Home Assistant Lovelace card that renders raw Apache ECharts options with native entity binding, history queries, transforms, and dark-mode support.">
+  <meta name="theme-color" content="#1a1b26">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+
+  <style>
+    /* ===== CSS Variables / Theme ===== */
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #1c2129;
+      --bg-code: #1c2129;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #58a6ff;
+      --accent-subtle: rgba(88, 166, 255, 0.15);
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --green-subtle: rgba(63, 185, 80, 0.15);
+      --orange: #d29922;
+      --orange-subtle: rgba(210, 153, 34, 0.15);
+      --purple: #bc8cff;
+      --purple-subtle: rgba(188, 140, 255, 0.15);
+      --border: #30363d;
+      --border-hover: #484f58;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --radius: 8px;
+      --code-font: 'JetBrains Mono', 'Fira Code', monospace;
+      --body-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f6f8fa;
+        --bg-tertiary: #f0f2f5;
+        --bg-code: #f6f8fa;
+        --text-primary: #1f2328;
+        --text-secondary: #656d76;
+        --text-muted: #8b949e;
+        --accent: #0969da;
+        --accent-subtle: rgba(9, 105, 218, 0.1);
+        --accent-hover: #0550ae;
+        --green: #1a7f37;
+        --green-subtle: rgba(26, 127, 55, 0.1);
+        --orange: #9a6700;
+        --orange-subtle: rgba(154, 103, 0, 0.1);
+        --purple: #8250df;
+        --purple-subtle: rgba(130, 80, 223, 0.1);
+        --border: #d0d7de;
+        --border-hover: #afb8c1;
+        --shadow: rgba(0, 0, 0, 0.08);
+      }
+    }
+
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 80px;
+    }
+
+    body {
+      font-family: var(--body-font);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== Top Nav ===== */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+    .top-nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .top-nav-brand {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text-primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .top-nav-brand svg { width: 24px; height: 24px; fill: var(--accent); }
+    .top-nav-links { display: flex; gap: 24px; list-style: none; }
+    .top-nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .top-nav-links a:hover { color: var(--accent); }
+
+    /* ===== Layout ===== */
+    .page-wrapper {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      max-width: 1200px;
+      margin: 0 auto;
+      gap: 48px;
+      padding: 32px 24px 80px;
+    }
+
+    /* ===== Sidebar (TOC) ===== */
+    .sidebar {
+      position: sticky;
+      top: 88px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 16px;
+    }
+    .sidebar h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar li { margin-bottom: 2px; }
+    .sidebar a {
+      display: block;
+      padding: 4px 12px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .sidebar a:hover {
+      color: var(--accent);
+      background: var(--accent-subtle);
+    }
+    .sidebar .indent { padding-left: 28px; font-size: 0.82rem; }
+
+    /* ===== Main Content ===== */
+    .content { min-width: 0; }
+
+    /* ===== Hero ===== */
+    .hero {
+      padding: 48px 0 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 48px;
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero .subtitle {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      max-width: 640px;
+      line-height: 1.6;
+    }
+    .hero .badges {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+    .badge-green { background: var(--green-subtle); color: var(--green); border-color: transparent; }
+    .badge-blue { background: var(--accent-subtle); color: var(--accent); border-color: transparent; }
+    .badge-purple { background: var(--purple-subtle); color: var(--purple); border-color: transparent; }
+    .badge-orange { background: var(--orange-subtle); color: var(--orange); border-color: transparent; }
+
+    .hero-actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-outline {
+      background: transparent;
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ===== Sections ===== */
+    section { margin-bottom: 56px; }
+    section h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+    section h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 28px 0 12px;
+      color: var(--text-primary);
+    }
+    section h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 20px 0 8px;
+      color: var(--text-secondary);
+    }
+    p { margin-bottom: 14px; color: var(--text-secondary); }
+    p strong { color: var(--text-primary); }
+    a { color: var(--accent); }
+
+    /* ===== Code Blocks ===== */
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    pre code {
+      font-family: var(--code-font);
+      background: none;
+      padding: 0;
+      border: none;
+      color: var(--text-primary);
+    }
+    code {
+      font-family: var(--code-font);
+      background: var(--bg-code);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    /* ===== Tables ===== */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    tr:last-child td { border-bottom: none; }
+    td code { font-size: 0.82em; }
+
+    /* ===== Info / Tip / Warning boxes ===== */
+    .callout {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      margin: 16px 0 20px;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+    }
+    .callout-title {
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+    .callout-info { background: var(--accent-subtle); border-color: var(--accent); }
+    .callout-info .callout-title { color: var(--accent); }
+    .callout-tip { background: var(--green-subtle); border-color: var(--green); }
+    .callout-tip .callout-title { color: var(--green); }
+    .callout-warn { background: var(--orange-subtle); border-color: var(--orange); }
+    .callout-warn .callout-title { color: var(--orange); }
+
+    /* ===== Feature cards ===== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .feature-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.15s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+    .feature-card-icon {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+    }
+    .feature-card h4 {
+      margin: 0 0 6px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .feature-card p {
+      font-size: 0.88rem;
+      margin: 0;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Lists ===== */
+    ul, ol { padding-left: 24px; margin-bottom: 14px; }
+    li { margin-bottom: 4px; color: var(--text-secondary); }
+
+    /* ===== Hero Screenshot ===== */
+    .hero-screenshot {
+      margin: 28px auto 0;
+      max-width: 720px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      border: 1px solid var(--border);
+    }
+    .hero-screenshot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* ===== Example Screenshot ===== */
+    .example-screenshot {
+      margin: 16px auto 24px;
+      max-width: 420px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+    }
+    .example-screenshot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 768px) {
+      .page-wrapper {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 24px;
+      }
+      .sidebar { display: none; }
+      .hero h1 { font-size: 2rem; }
+      .top-nav-links { gap: 16px; }
+    }
+  </style>
 </head>
 <body>
-  <h1>Lovelace ECharts Raw Card</h1>
 
-  <p>
-    A <strong>Home Assistant Lovelace custom card</strong> that allows you to use
-    <strong>raw Apache ECharts option objects</strong> for advanced dashboards and
-    visualizations.
-  </p>
-
-  <p>
-    <a href="https://github.com/rsr5/lovelace-echarts-raw-card">
-      View on GitHub
+<!-- ============================================================
+     TOP NAV
+     ============================================================ -->
+<nav class="top-nav">
+  <div class="top-nav-inner">
+    <a class="top-nav-brand" href="#">
+      <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      ECharts Raw Card
     </a>
-  </p>
+    <ul class="top-nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#installation">Install</a></li>
+      <li><a href="#usage">Usage</a></li>
+      <li><a href="#tokens">Tokens</a></li>
+      <li><a href="#history">History</a></li>
+      <li><a href="https://github.com/rsr5/lovelace-echarts-raw-card" target="_blank">GitHub ↗</a></li>
+    </ul>
+  </div>
+</nav>
 
-  <h2>Features</h2>
-  <ul>
-    <li>Full Apache ECharts option support</li>
-    <li>Advanced tooltips and axes</li>
-    <li>Works with Home Assistant dashboards</li>
-  </ul>
+<!-- ============================================================
+     MAIN LAYOUT
+     ============================================================ -->
+<div class="page-wrapper">
+
+  <!-- Sidebar TOC -->
+  <aside class="sidebar">
+    <h3>Contents</h3>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#why">Why This Card?</a></li>
+      <li><a href="#installation">Installation</a></li>
+      <li><a href="#usage">Basic Usage</a></li>
+      <li><a href="#card-config">Card Config Reference</a></li>
+      <li><a href="#tokens">$entity Tokens</a></li>
+      <li class="indent"><a href="#token-fields">Token Fields</a></li>
+      <li class="indent"><a href="#token-transforms">Transforms</a></li>
+      <li><a href="#data">$data — Bulk Entities</a></li>
+      <li class="indent"><a href="#data-modes">Modes</a></li>
+      <li class="indent"><a href="#data-options">Options</a></li>
+      <li><a href="#history">$history — Historical Data</a></li>
+      <li class="indent"><a href="#history-single">Single Entity</a></li>
+      <li class="indent"><a href="#history-multi">Multi Entity</a></li>
+      <li class="indent"><a href="#history-downsample">Downsampling</a></li>
+      <li class="indent"><a href="#history-overrides">Series Overrides</a></li>
+      <li><a href="#caching">Caching &amp; Performance</a></li>
+      <li><a href="#dark-mode">Dark Mode</a></li>
+      <li><a href="#debugging">Debugging</a></li>
+      <li><a href="#chart-ideas">Chart Ideas</a></li>
+    </ul>
+  </aside>
+
+  <!-- Content -->
+  <main class="content">
+
+    <!-- ======== HERO ======== -->
+    <div class="hero" id="top">
+      <h1>ECharts Raw Card</h1>
+      <p class="subtitle">
+        A <strong>power-user Home Assistant Lovelace card</strong> that renders
+        <strong>raw Apache ECharts options</strong> — with native entity binding,
+        history queries, transforms, and automatic dark-mode support.
+      </p>
+      <div class="badges">
+        <span class="badge badge-green">✓ Full ECharts</span>
+        <span class="badge badge-blue">✓ Live Entities</span>
+        <span class="badge badge-purple">✓ History Queries</span>
+        <span class="badge badge-orange">✓ Dark Mode</span>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#installation">Get Started</a>
+        <a class="btn btn-outline" href="https://github.com/rsr5/lovelace-echarts-raw-card" target="_blank">
+          View on GitHub
+        </a>
+        <a class="btn btn-outline" href="https://echarts.apache.org/examples/" target="_blank">
+          ECharts Gallery ↗
+        </a>
+      </div>
+      <div class="hero-screenshot">
+        <img src="images/hero.png" alt="ECharts Raw Card demo charts in Home Assistant" />
+      </div>
+    </div>
+
+    <!-- ======== FEATURES ======== -->
+    <section id="features">
+      <h2>Features</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">📊</div>
+          <h4>Full Apache ECharts</h4>
+          <p>No abstraction layer — write real ECharts <code>option</code> objects. Gauges, heatmaps, radar, sankey, treemaps, and more.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">🔗</div>
+          <h4>Live Entity Binding</h4>
+          <p>Bind any HA entity into your chart with <code>$entity</code> tokens. Real-time updates as state changes.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">📈</div>
+          <h4>History Queries</h4>
+          <p>Fetch HA history directly with <code>$history</code>. Supports multi-entity, downsampling, and smart caching.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">⚡</div>
+          <h4>Built-in Transforms</h4>
+          <p>Scale, round, clamp, log, sqrt, abs, and offset — apply math transforms inline, no templates needed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">🌙</div>
+          <h4>Automatic Dark Mode</h4>
+          <p>Seamlessly switches between light and dark ECharts themes based on your HA UI setting.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">🚀</div>
+          <h4>Efficient Caching</h4>
+          <p>Smart history caching with configurable TTL. State churn never spams the history API.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== WHY THIS CARD ======== -->
+    <section id="why">
+      <h2>Why This Card?</h2>
+      <p>
+        Home Assistant's built-in charts handle basics well — line graphs, bar charts, history graphs.
+        But when you need a <strong>radar chart for room climate</strong>, a <strong>gauge cluster for your UPS</strong>,
+        a <strong>heatmap of hourly energy usage</strong>, or a <strong>sankey diagram of power flow</strong>
+        — you hit a wall.
+      </p>
+      <p>
+        Most chart cards invent their own DSL. This card takes a different approach:
+        <strong>you write real ECharts option objects</strong>, and it resolves Home Assistant data into them.
+        Anything ECharts can render, this card can render — with live data.
+      </p>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 Tip</div>
+        Browse the <a href="https://echarts.apache.org/examples/" target="_blank">ECharts Examples Gallery</a>
+        for inspiration. Copy any example's <code>option</code> object into your card config and
+        replace static data with <code>$entity</code>, <code>$data</code>, or <code>$history</code> tokens.
+      </div>
+    </section>
+
+    <!-- ======== INSTALLATION ======== -->
+    <section id="installation">
+      <h2>Installation</h2>
+
+      <h3>Via HACS (Recommended)</h3>
+      <ol>
+        <li>Open HACS → <strong>Frontend</strong> → <strong>Custom Repositories</strong></li>
+        <li>Add this repository — Category: <strong>Lovelace</strong></li>
+        <li>Install the card</li>
+        <li>Add the resource under <strong>Settings → Dashboards → Resources</strong>:
+<pre><code class="language-yaml">url: /hacsfiles/lovelace-echarts-raw-card/echarts-raw-card.js
+type: module</code></pre>
+        </li>
+      </ol>
+
+      <h3>Manual Installation</h3>
+      <ol>
+        <li>Download <code>echarts-raw-card.js</code> from the
+            <a href="https://github.com/rsr5/lovelace-echarts-raw-card/releases" target="_blank">Releases</a> page</li>
+        <li>Copy it to <code>/config/www/echarts-raw-card.js</code></li>
+        <li>Add the resource:
+<pre><code class="language-yaml">url: /local/echarts-raw-card.js
+type: module</code></pre>
+        </li>
+      </ol>
+
+      <h3>Development</h3>
+      <p>For local development with hot-reload, point HA at your Vite dev server:</p>
+<pre><code class="language-yaml">url: http://YOUR_LAN_IP:5173/src/index.ts
+type: module</code></pre>
+    </section>
+
+    <!-- ======== BASIC USAGE ======== -->
+    <section id="usage">
+      <h2>Basic Usage</h2>
+      <p>
+        The card accepts any valid ECharts <code>option</code> object.
+        At minimum you need <code>type: custom:echarts-raw-card</code> and an <code>option</code> key.
+      </p>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+title: Weekly Stats
+height: 320px
+option:
+  tooltip: {}
+  xAxis:
+    type: category
+    data: [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+  yAxis:
+    type: value
+  series:
+    - type: line
+      smooth: true
+      data: [150, 230, 224, 218, 135, 147, 260]</code></pre>
+      <p>
+        That's it. Any option from the
+        <a href="https://echarts.apache.org/en/option.html" target="_blank">ECharts option reference</a>
+        works. Now let's make it dynamic with tokens.
+      </p>
+    </section>
+
+    <!-- ======== CARD CONFIG REFERENCE ======== -->
+    <section id="card-config">
+      <h2>Card Config Reference</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>option</code></td>
+              <td>object</td>
+              <td><em>required</em></td>
+              <td>ECharts <code>option</code> object — the chart specification</td>
+            </tr>
+            <tr>
+              <td><code>title</code></td>
+              <td>string</td>
+              <td>—</td>
+              <td>Card title shown above the chart</td>
+            </tr>
+            <tr>
+              <td><code>height</code></td>
+              <td>string</td>
+              <td><code>300px</code></td>
+              <td>Chart container height (CSS value)</td>
+            </tr>
+            <tr>
+              <td><code>renderer</code></td>
+              <td>string</td>
+              <td><code>canvas</code></td>
+              <td><code>canvas</code> or <code>svg</code></td>
+            </tr>
+            <tr>
+              <td><code>debug</code></td>
+              <td>bool / object</td>
+              <td><code>false</code></td>
+              <td>Enable debug output (see <a href="#debugging">Debugging</a>)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ======== $entity TOKENS ======== -->
+    <section id="tokens">
+      <h2><code>$entity</code> — Live Entity Binding</h2>
+      <p>
+        Bind any Home Assistant entity state (or attribute) into your chart.
+        Place a token object wherever you'd put a static value.
+      </p>
+
+<pre><code class="language-yaml">option:
+  series:
+    - type: gauge
+      min: 0
+      max: 100
+      data:
+        - value:
+            $entity: sensor.living_room_humidity
+            $coerce: number
+            $round: 1
+          name: Humidity</code></pre>
+
+      <p>
+        The card resolves the token at render time, coerces to a number, rounds to 1 decimal,
+        and injects the value. When the entity state changes, the chart updates automatically.
+      </p>
+
+      <h3 id="token-fields">Token Fields</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>$entity</code></td>
+              <td>string</td>
+              <td>Entity ID (required)</td>
+            </tr>
+            <tr>
+              <td><code>$attr</code></td>
+              <td>string</td>
+              <td>Read an attribute instead of <code>state</code></td>
+            </tr>
+            <tr>
+              <td><code>$coerce</code></td>
+              <td>string</td>
+              <td><code>auto</code>, <code>number</code>, <code>string</code>, or <code>bool</code></td>
+            </tr>
+            <tr>
+              <td><code>$default</code></td>
+              <td>any</td>
+              <td>Fallback value if the entity is unavailable</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="token-transforms">Transforms</h3>
+      <p>Apply inline math transforms to the resolved value:</p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Field</th><th>Type</th><th>Example</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>$abs</code></td>
+              <td>boolean</td>
+              <td><code>true</code></td>
+              <td>Absolute value</td>
+            </tr>
+            <tr>
+              <td><code>$scale</code></td>
+              <td>number</td>
+              <td><code>0.001</code></td>
+              <td>Multiply by factor (e.g. W → kW)</td>
+            </tr>
+            <tr>
+              <td><code>$offset</code></td>
+              <td>number</td>
+              <td><code>-273.15</code></td>
+              <td>Add constant (e.g. Kelvin → Celsius)</td>
+            </tr>
+            <tr>
+              <td><code>$min</code></td>
+              <td>number</td>
+              <td><code>0</code></td>
+              <td>Floor clamp</td>
+            </tr>
+            <tr>
+              <td><code>$max</code></td>
+              <td>number</td>
+              <td><code>100</code></td>
+              <td>Ceiling clamp</td>
+            </tr>
+            <tr>
+              <td><code>$clamp</code></td>
+              <td>[min, max]</td>
+              <td><code>[0, 100]</code></td>
+              <td>Clamp to range (shorthand for $min + $max)</td>
+            </tr>
+            <tr>
+              <td><code>$round</code></td>
+              <td>number</td>
+              <td><code>2</code></td>
+              <td>Round to N decimal places</td>
+            </tr>
+            <tr>
+              <td><code>$map</code></td>
+              <td>string / object</td>
+              <td><code>log</code></td>
+              <td><code>log</code>, <code>sqrt</code>, or <code>pow</code> mapping</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Transform Example</h4>
+<pre><code class="language-yaml"># Convert mW to kW, clamp 0–10, round to 2 decimals
+value:
+  $entity: sensor.grid_power
+  $coerce: number
+  $scale: 0.000001
+  $clamp: [0, 10]
+  $round: 2</code></pre>
+    </section>
+
+    <!-- ======== $data ======== -->
+    <section id="data">
+      <h2><code>$data</code> — Bulk Entity Extraction</h2>
+      <p>
+        Use <code>$data</code> when you want <strong>multiple entities</strong> turned into chart data
+        automatically. Great for pie charts, bar comparisons, or populating axis labels.
+      </p>
+
+<pre><code class="language-yaml">option:
+  tooltip:
+    trigger: item
+    formatter: '{b}: {c} W ({d}%)'
+  series:
+    - type: pie
+      radius: [45%, 70%]
+      data:
+        $data:
+          entities:
+            - sensor.power_kitchen
+            - sensor.power_living_room
+            - sensor.power_office
+          mode: pairs
+          name_from: friendly_name
+          coerce: number
+          exclude_zero: true
+          sort: desc</code></pre>
+
+      <h3 id="data-modes">Modes</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Mode</th><th>Output</th><th>Use Case</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>pairs</code></td>
+              <td><code>{ name, value }[]</code></td>
+              <td>Pie charts, bar charts with labels</td>
+            </tr>
+            <tr>
+              <td><code>names</code></td>
+              <td><code>string[]</code></td>
+              <td>Axis category labels</td>
+            </tr>
+            <tr>
+              <td><code>values</code></td>
+              <td><code>unknown[]</code></td>
+              <td>Series data arrays</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="data-options">Options</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>entities</code></td>
+              <td>array</td>
+              <td><em>required</em></td>
+              <td>Entity IDs or <code>{ id, name }</code> objects</td>
+            </tr>
+            <tr>
+              <td><code>mode</code></td>
+              <td>string</td>
+              <td><code>pairs</code></td>
+              <td><code>pairs</code>, <code>names</code>, or <code>values</code></td>
+            </tr>
+            <tr>
+              <td><code>name_from</code></td>
+              <td>string</td>
+              <td><code>friendly_name</code></td>
+              <td><code>friendly_name</code> or <code>entity_id</code></td>
+            </tr>
+            <tr>
+              <td><code>attr</code></td>
+              <td>string</td>
+              <td>—</td>
+              <td>Read an attribute instead of state</td>
+            </tr>
+            <tr>
+              <td><code>coerce</code></td>
+              <td>string</td>
+              <td><code>auto</code></td>
+              <td>Type coercion</td>
+            </tr>
+            <tr>
+              <td><code>default</code></td>
+              <td>any</td>
+              <td>—</td>
+              <td>Fallback for unavailable entities</td>
+            </tr>
+            <tr>
+              <td><code>exclude_unavailable</code></td>
+              <td>boolean</td>
+              <td><code>true</code></td>
+              <td>Skip entities that are unavailable/unknown</td>
+            </tr>
+            <tr>
+              <td><code>exclude_zero</code></td>
+              <td>boolean</td>
+              <td><code>false</code></td>
+              <td>Skip entities with value <code>0</code></td>
+            </tr>
+            <tr>
+              <td><code>sort</code></td>
+              <td>string</td>
+              <td><code>none</code></td>
+              <td><code>asc</code>, <code>desc</code>, or <code>none</code></td>
+            </tr>
+            <tr>
+              <td><code>limit</code></td>
+              <td>number</td>
+              <td>—</td>
+              <td>Max items to return</td>
+            </tr>
+            <tr>
+              <td><code>transforms</code></td>
+              <td>object</td>
+              <td>—</td>
+              <td>Same transforms as <code>$entity</code> (scale, round, etc.)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Custom Entity Names</h4>
+<pre><code class="language-yaml">$data:
+  entities:
+    - id: sensor.living_room_tv_power
+      name: TV
+    - id: sensor.heater_power
+      name: Heater
+  mode: pairs
+  coerce: number
+  exclude_zero: true</code></pre>
+    </section>
+
+    <!-- ======== $history ======== -->
+    <section id="history">
+      <h2><code>$history</code> — Historical Data</h2>
+      <p>
+        Fetch Home Assistant recorder history directly into ECharts.
+        The card handles the API call, data parsing, caching, and throttling.
+      </p>
+
+      <h3 id="history-single">Single Entity</h3>
+      <p>When you fetch one entity, the output is an array of <code>[timestamp, value]</code> pairs — perfect for a time-series axis.</p>
+<pre><code class="language-yaml">option:
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+  series:
+    - type: line
+      showSymbol: false
+      data:
+        $history:
+          entities:
+            - sensor.outdoor_temperature
+          hours: 24
+          coerce: number</code></pre>
+
+      <h3 id="history-multi">Multi-Entity → Auto Series</h3>
+      <p>
+        When multiple entities are listed, the card can auto-generate one ECharts series per entity.
+        This replaces the entire <code>series</code> array.
+      </p>
+<pre><code class="language-yaml">option:
+  tooltip:
+    trigger: axis
+  legend:
+    top: 0
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+    axisLabel:
+      formatter: '{value} W'
+  series:
+    $history:
+      entities:
+        - id: sensor.solar_power
+          name: Solar
+        - id: sensor.grid_power
+          name: Grid
+      hours: 24
+      mode: series
+      series_type: line
+      show_symbol: false
+      coerce: number
+      sample:
+        max_points: 300
+        method: mean</code></pre>
+
+      <div class="callout callout-info">
+        <div class="callout-title">ℹ️ Auto Mode</div>
+        If <code>mode</code> is omitted, the card defaults to <code>values</code> for a single entity
+        and <code>series</code> for multiple entities.
+      </div>
+
+      <h3 id="history-downsample">Downsampling</h3>
+      <p>
+        For long time ranges, use <code>sample</code> to reduce data points.
+        This keeps the chart responsive and reduces memory usage.
+      </p>
+<pre><code class="language-yaml">$history:
+  entities:
+    - sensor.energy_usage
+  hours: 168  # 7 days
+  sample:
+    max_points: 300
+    method: mean  # or "last"</code></pre>
+
+      <h3 id="history-overrides">Per-Series Overrides</h3>
+      <p>
+        Customize individual series when using <code>mode: series</code>.
+        Keys match the entity's display name or entity ID.
+      </p>
+<pre><code class="language-yaml">$history:
+  entities:
+    - sensor.solar_power
+    - sensor.grid_power
+  mode: series
+  series_type: line
+  series_overrides:
+    Solar:
+      areaStyle: {}
+      smooth: true
+      color: '#f59e0b'
+    Grid:
+      lineStyle:
+        type: dashed</code></pre>
+
+      <h3>$history Options Reference</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>entities</code></td>
+              <td>array</td>
+              <td><em>required</em></td>
+              <td>Entity IDs or <code>{ id, name }</code> objects</td>
+            </tr>
+            <tr>
+              <td><code>hours</code></td>
+              <td>number</td>
+              <td><code>24</code></td>
+              <td>Hours of history to fetch</td>
+            </tr>
+            <tr>
+              <td><code>mode</code></td>
+              <td>string</td>
+              <td><em>auto</em></td>
+              <td><code>values</code> or <code>series</code></td>
+            </tr>
+            <tr>
+              <td><code>coerce</code></td>
+              <td>string</td>
+              <td><code>number</code></td>
+              <td>Type coercion for values</td>
+            </tr>
+            <tr>
+              <td><code>series_type</code></td>
+              <td>string</td>
+              <td><code>line</code></td>
+              <td><code>line</code>, <code>bar</code>, or <code>scatter</code></td>
+            </tr>
+            <tr>
+              <td><code>show_symbol</code></td>
+              <td>boolean</td>
+              <td><code>false</code></td>
+              <td>Show data point markers</td>
+            </tr>
+            <tr>
+              <td><code>sample</code></td>
+              <td>object</td>
+              <td>—</td>
+              <td><code>{ max_points, method }</code> for downsampling</td>
+            </tr>
+            <tr>
+              <td><code>cache_seconds</code></td>
+              <td>number</td>
+              <td><code>30</code></td>
+              <td>How long to cache the API response</td>
+            </tr>
+            <tr>
+              <td><code>series_overrides</code></td>
+              <td>object</td>
+              <td>—</td>
+              <td>Per-series ECharts overrides keyed by name</td>
+            </tr>
+            <tr>
+              <td><code>transforms</code></td>
+              <td>object</td>
+              <td>—</td>
+              <td>Apply transforms to values (scale, round, etc.)</td>
+            </tr>
+            <tr>
+              <td><code>name_from</code></td>
+              <td>string</td>
+              <td><code>friendly_name</code></td>
+              <td>How to label series</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ======== CACHING ======== -->
+    <section id="caching">
+      <h2>Caching &amp; Performance</h2>
+      <p>The card is designed to be efficient out of the box:</p>
+      <ul>
+        <li><strong>History caching</strong> — API responses are cached for <code>cache_seconds</code> (default 30). No redundant fetches.</li>
+        <li><strong>LRU eviction</strong> — The cache stores the most recent 100 unique queries. Old entries are evicted automatically.</li>
+        <li><strong>Throttled re-fetches</strong> — State changes don't spam the history API. Re-fetches respect the cache TTL.</li>
+        <li><strong>Downsampling</strong> — Use <code>sample.max_points</code> to keep large datasets from slowing down rendering.</li>
+      </ul>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 Tip</div>
+        For dashboards with many history cards, increase <code>cache_seconds</code> to 60–120 to reduce API load.
+      </div>
+<pre><code class="language-yaml">$history:
+  entities: [sensor.energy]
+  hours: 48
+  cache_seconds: 120
+  sample:
+    max_points: 200
+    method: mean</code></pre>
+    </section>
+
+    <!-- ======== DARK MODE ======== -->
+    <section id="dark-mode">
+      <h2>Dark Mode</h2>
+      <p>
+        The card automatically detects your Home Assistant UI theme and switches
+        between ECharts' default (light) and <code>dark</code> themes. No configuration required.
+      </p>
+      <p>
+        This applies to text color, grid lines, tooltip styling, and legend colors —
+        charts look native in both light and dark dashboards.
+      </p>
+    </section>
+
+    <!-- ======== DEBUGGING ======== -->
+    <section id="debugging">
+      <h2>Debugging</h2>
+      <p>
+        When charts don't look right, enable debug mode to see exactly what the card sends to ECharts.
+      </p>
+
+      <h3>Quick Enable</h3>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+debug: true
+option:
+  ...</code></pre>
+
+      <h3>Fine-Grained Debug</h3>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+debug:
+  show_resolved_option: true   # Shows resolved JSON in the card
+  log_resolved_option: true    # Logs to browser console
+  max_chars: 20000             # Safety limit for JSON text
+option:
+  ...</code></pre>
+
+      <div class="callout callout-warn">
+        <div class="callout-title">⚠️ Console Visibility</div>
+        Some browsers hide <code>console.debug()</code> output.
+        In Chrome, set the console log level to <strong>Verbose</strong> to see debug messages.
+      </div>
+
+      <h3>What Debug Shows</h3>
+      <ul>
+        <li>The <strong>fully resolved</strong> ECharts option after all <code>$entity</code>, <code>$data</code>, and <code>$history</code> tokens are replaced</li>
+        <li>Helpful for verifying that entities resolved correctly, transforms applied properly, and history data arrived</li>
+      </ul>
+    </section>
+
+    <!-- ======== CHART IDEAS ======== -->
+    <section id="chart-ideas">
+      <h2>Chart Ideas — Beyond Line &amp; Bar</h2>
+      <p>
+        The whole point of this card is unlocking chart types that HA can't do natively.
+        Here are some ideas to get you started. Each one links to the ECharts example that inspired it.
+      </p>
+
+      <h3>🌡️ Gauge Cluster — System Health</h3>
+      <p>
+        Modern ring-style gauges with gradient fills and animated progress arcs.
+        Four gauges in one card — something HA's native gauge card can't do.
+      </p>
+      <div class="example-screenshot">
+        <img src="images/gauges.png" alt="System Health gauge cluster" />
+      </div>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 440px
+option:
+  title:
+    text: System Health
+    left: center
+    top: 4
+  series:
+    - type: gauge
+      name: HA CPU
+      center: ["33%", "32%"]
+      radius: "34%"
+      min: 0
+      max: 100
+      startAngle: 270
+      endAngle: -90
+      itemStyle:
+        color:
+          type: linear
+          x: 0
+          y: 0
+          x2: 1
+          y2: 0
+          colorStops:
+            - offset: 0
+              color: "#58d9f9"
+            - offset: 1
+              color: "#1890ff"
+      progress:
+        show: true
+        width: 12
+        roundCap: true
+      axisLine:
+        lineStyle:
+          width: 12
+          color:
+            - [1, "rgba(255,255,255,0.08)"]
+      axisTick:
+        show: false
+      splitLine:
+        show: false
+      axisLabel:
+        show: false
+      pointer:
+        show: false
+      anchor:
+        show: false
+      title:
+        offsetCenter: [0, "-10%"]
+        fontSize: 13
+        color: "#aaa"
+      detail:
+        valueAnimation: true
+        formatter: "{value}%"
+        offsetCenter: [0, "15%"]
+        fontSize: 24
+        fontWeight: bold
+        color: "#58d9f9"
+      data:
+        - name: HA CPU
+          value:
+            $entity: sensor.localhost_cpu_usage
+            $coerce: number
+            $round: 1
+    # … repeat for Router CPU (green), HA Memory (orange),
+    #   Router Memory (purple) with center offsets:
+    #   ["67%","32%"], ["33%","72%"], ["67%","72%"]</code></pre>
+
+      <h3>🕸️ Radar — Room Climate Comparison</h3>
+      <p>
+        Compare temperature and light levels across rooms on a single radar chart.
+        Uses <code>$map: log</code> to compress the wide lux range onto the same scale as temperature.
+        <a href="https://echarts.apache.org/examples/en/editor.html?c=radar" target="_blank">ECharts radar →</a>
+      </p>
+      <div class="example-screenshot">
+        <img src="images/radar.png" alt="Room Climate Radar chart" />
+      </div>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 480px
+option:
+  title:
+    text: Room Climate Radar
+    left: 12
+    top: 8
+  legend:
+    bottom: 0
+    data:
+      - Temperature (°C)
+      - "Light (log\u2081\u2080 lx)"
+  radar:
+    indicator:
+      - name: Hall
+        max: 25
+      - name: Porch
+        max: 25
+      - name: Kitchen
+        max: 25
+      - name: Garage
+        max: 25
+      - name: Garage Loft
+        max: 25
+  series:
+    - type: radar
+      name: Temperature (°C)
+      symbol: circle
+      symbolSize: 6
+      lineStyle:
+        width: 2
+      areaStyle:
+        opacity: 0.15
+      data:
+        - name: Temperature (°C)
+          value:
+            - $entity: sensor.hall_motion_sensor_temperature
+              $coerce: number
+              $clamp: [0, 25]
+            - $entity: sensor.porch_sensor_temperature
+              $coerce: number
+              $clamp: [0, 25]
+            - $entity: sensor.kitchen_sensor_temperature
+              $coerce: number
+              $clamp: [0, 25]
+            - $entity: sensor.garage_motion_sensor_temperature
+              $coerce: number
+              $clamp: [0, 25]
+            - $entity: sensor.garage_loft_sensor_temperature
+              $coerce: number
+              $clamp: [0, 25]
+    - type: radar
+      name: "Light (log\u2081\u2080 lx)"
+      symbol: diamond
+      symbolSize: 6
+      lineStyle:
+        width: 2
+        type: dashed
+      areaStyle:
+        opacity: 0.12
+      data:
+        - name: "Light (log\u2081\u2080 lx)"
+          value:
+            - $entity: sensor.hall_motion_sensor_illuminance
+              $coerce: number
+              $map: log
+              $clamp: [0, 25]
+            - $entity: sensor.porch_sensor_illuminance
+              $coerce: number
+              $map: log
+              $clamp: [0, 25]
+            - $entity: sensor.kitchen_sensor_illuminance
+              $coerce: number
+              $map: log
+              $clamp: [0, 25]
+            - $entity: sensor.garage_motion_sensor_illuminance
+              $coerce: number
+              $map: log
+              $clamp: [0, 25]
+            - $entity: sensor.garage_loft_sensor_illuminance
+              $coerce: number
+              $map: log
+              $clamp: [0, 25]</code></pre>
+
+      <h3>🍩 Donut — Power Source Breakdown</h3>
+      <p>
+        Live donut showing where your electricity is coming from right now.
+        Gradient fills and rounded segments give it a modern look.
+        Hover for kW values and percentages.
+      </p>
+      <div class="example-screenshot">
+        <img src="images/donut.png" alt="Power Sources donut chart" />
+      </div>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 400px
+option:
+  title:
+    text: Power Sources
+    left: center
+    top: 8
+  tooltip:
+    trigger: item
+    formatter: "{b}: {c} kW ({d}%)"
+  legend:
+    bottom: 0
+    data: [Solar, Battery, Grid]
+  series:
+    - type: pie
+      radius: ["40%", "70%"]
+      center: ["50%", "50%"]
+      itemStyle:
+        borderRadius: 8
+        borderColor: "rgba(0,0,0,0.3)"
+        borderWidth: 2
+      label:
+        show: false
+      emphasis:
+        label:
+          show: false
+        itemStyle:
+          shadowBlur: 10
+      data:
+        - name: Solar
+          value:
+            $entity: sensor.home_solar_power
+            $coerce: number
+            $round: 2
+          itemStyle:
+            color:
+              type: linear
+              colorStops:
+                - { offset: 0, color: "#fadb14" }
+                - { offset: 1, color: "#fa8c16" }
+        - name: Battery
+          value:
+            $entity: sensor.home_battery_power
+            $coerce: number
+            $round: 2
+          itemStyle:
+            color:
+              type: linear
+              colorStops:
+                - { offset: 0, color: "#73d13d" }
+                - { offset: 1, color: "#237804" }
+        - name: Grid
+          value:
+            $entity: sensor.home_grid_power
+            $coerce: number
+            $round: 2
+          itemStyle:
+            color:
+              type: linear
+              colorStops:
+                - { offset: 0, color: "#69b1ff" }
+                - { offset: 1, color: "#0958d9" }</code></pre>
+
+      <h3>🌸 Nightingale Rose — Energy Breakdown</h3>
+      <p>
+        A polar bar chart where petal length represents kWh.
+        Instantly see which energy category dominates your day.
+      </p>
+      <div class="example-screenshot">
+        <img src="images/nightingale.png" alt="Nightingale rose energy chart" />
+      </div>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 440px
+option:
+  title:
+    text: Energy Today
+    left: center
+    top: 8
+  tooltip:
+    trigger: item
+    formatter: "{b}: {c} kWh"
+  legend:
+    bottom: 0
+    itemGap: 12
+  series:
+    - type: pie
+      roseType: radius
+      radius: ["20%", "60%"]
+      center: ["50%", "48%"]
+      itemStyle:
+        borderRadius: 6
+        borderColor: "rgba(0,0,0,0.2)"
+        borderWidth: 2
+      label:
+        show: true
+        position: outside
+        formatter: "{b}"
+        fontSize: 12
+      emphasis:
+        itemStyle:
+          shadowBlur: 12
+      data:
+        - name: Solar
+          value:
+            $entity: sensor.home_solar_generated
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#faad14"
+        - name: Grid Import
+          value:
+            $entity: sensor.home_grid_imported
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#4096ff"
+        - name: Grid Export
+          value:
+            $entity: sensor.home_grid_exported
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#36cfc9"
+        - name: Battery In
+          value:
+            $entity: sensor.home_battery_charged
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#73d13d"
+        - name: Battery Out
+          value:
+            $entity: sensor.home_battery_discharged
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#ff7a45"
+        - name: Home Use
+          value:
+            $entity: sensor.home_home_usage
+            $coerce: number
+            $round: 1
+          itemStyle:
+            color: "#b37feb"</code></pre>
+
+      <h3>⚡ Agile Pricing — Daily Rate Chart</h3>
+      <p>
+        Smooth area chart of Octopus Agile half-hourly rates with a colour gradient
+        that turns red during peak pricing. Uses a
+        <strong>HA template sensor</strong> to pre-process the rate data.
+      </p>
+      <div class="example-screenshot">
+        <img src="images/prices.png" alt="Octopus Agile pricing chart" />
+      </div>
+      <h4>Step 1 — Template sensor helper</h4>
+      <p>Add this to your <code>configuration.yaml</code> (replace the event entity ID with your own):</p>
+<pre><code class="language-yaml"># configuration.yaml
+template:
+  - sensor:
+      - name: "Agile Rates Today"
+        state: >
+          {{ state_attr('event.octopus_energy_electricity_SERIAL_MPAN_current_day_rates', 'rates') | length }}
+        attributes:
+          times: >
+            {% set rates = state_attr('event.octopus_energy_electricity_SERIAL_MPAN_current_day_rates', 'rates') %}
+            {{ rates | map(attribute='start') | map('as_timestamp') | map('timestamp_custom', '%H:%M') | list }}
+          prices: >
+            {% set rates = state_attr('event.octopus_energy_electricity_SERIAL_MPAN_current_day_rates', 'rates') %}
+            {{ rates | map(attribute='value_inc_vat') | list }}
+          average: >
+            {% set rates = state_attr('event.octopus_energy_electricity_SERIAL_MPAN_current_day_rates', 'rates') %}
+            {{ (rates | map(attribute='value_inc_vat') | list | average) | round(4) }}</code></pre>
+      <h4>Step 2 — Card config</h4>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 360px
+option:
+  title:
+    text: Agile Price Today
+    left: center
+    top: 8
+  tooltip:
+    trigger: axis
+    backgroundColor: "rgba(30,30,30,0.9)"
+    borderColor: transparent
+  grid:
+    left: 40
+    right: 20
+    top: 44
+    bottom: 28
+  xAxis:
+    type: category
+    boundaryGap: false
+    data:
+      $entity: sensor.agile_rates_today
+      $attr: times
+    axisLabel:
+      fontSize: 10
+      color: "#666"
+      interval: 7
+    axisLine:
+      show: false
+    axisTick:
+      show: false
+  yAxis:
+    type: value
+    show: false
+  series:
+    - type: line
+      smooth: 0.4
+      symbol: none
+      lineStyle:
+        width: 3
+        color:
+          type: linear
+          x: 0
+          y: 0
+          x2: 1
+          y2: 0
+          colorStops:
+            - { offset: 0, color: "#52c41a" }
+            - { offset: 0.65, color: "#52c41a" }
+            - { offset: 0.7, color: "#fadb14" }
+            - { offset: 0.75, color: "#f5222d" }
+            - { offset: 0.85, color: "#f5222d" }
+            - { offset: 0.9, color: "#fadb14" }
+            - { offset: 0.95, color: "#52c41a" }
+      areaStyle:
+        opacity: 0.15
+        color:
+          type: linear
+          x: 0
+          y: 0
+          x2: 0
+          y2: 1
+          colorStops:
+            - { offset: 0, color: "rgba(245,34,34,0.4)" }
+            - { offset: 1, color: "rgba(82,196,26,0.02)" }
+      markLine:
+        silent: true
+        symbol: none
+        lineStyle:
+          type: dashed
+          color: "#555"
+        data:
+          - yAxis:
+              $entity: sensor.agile_rates_today
+              $attr: average
+              $coerce: number
+            label:
+              formatter: "avg {c}p"
+              fontSize: 10
+              color: "#888"
+      data:
+        $entity: sensor.agile_rates_today
+        $attr: prices</code></pre>
+    </section>
+
+    <!-- ======== FOOTER ======== -->
+    <footer style="border-top: 1px solid var(--border); padding-top: 32px; margin-top: 48px;">
+      <p style="font-size: 0.85rem; color: var(--text-muted);">
+        MIT License · Copyright © 2026 Robin Ridler ·
+        <a href="https://github.com/rsr5/lovelace-echarts-raw-card" target="_blank" style="color: var(--accent);">GitHub</a> ·
+        <a href="https://echarts.apache.org/" target="_blank" style="color: var(--accent);">Apache ECharts</a>
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+<script>hljs.highlightAll();</script>
 </body>
 </html>
