@@ -105,6 +105,21 @@ export function applyTransformsWithSpec(
   return applyNumberTransforms(coerced, token);
 }
 
+const BINARY_TRUTHY = new Set(["on", "true", "yes", "home", "open"]);
+const BINARY_FALSY = new Set(["off", "false", "no", "not_home", "closed"]);
+
+/**
+ * Pre-map binary/boolean string states to 1 or 0.
+ * Returns the original value unchanged if it doesn't look boolean.
+ */
+function coerceBinaryToNumber(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  const s = raw.toLowerCase().trim();
+  if (BINARY_TRUTHY.has(s)) return 1;
+  if (BINARY_FALSY.has(s)) return 0;
+  return raw;
+}
+
 export function coerceHistoryPointNumber(
   raw: unknown,
   entityId: string,
@@ -113,7 +128,12 @@ export function coerceHistoryPointNumber(
   transforms: DataGenerator["$data"]["transforms"] | undefined,
 ): number | undefined {
   const coerceMode: TokenObject["$coerce"] = coerce ?? "number";
-  const v = applyTransformsWithSpec(raw, entityId, def, coerceMode, transforms);
+
+  // Pre-map binary sensor strings ("on"→1, "off"→0) before the main pipeline,
+  // so they don't collapse to the default value for NaN.
+  const mapped = coerceBinaryToNumber(raw);
+
+  const v = applyTransformsWithSpec(mapped, entityId, def, coerceMode, transforms);
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isFinite(n)) return undefined;
   return n;
