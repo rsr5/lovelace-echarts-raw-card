@@ -1,8 +1,11 @@
 {
   "name": "ECharts Raw Card",
+  "description": "Full Apache ECharts in Lovelace — write raw chart options with live entity binding, history queries, transforms, and automatic dark mode. No DSL, no limits.",
   "content_in_root": false,
   "render_readme": true,
-  "domains": ["lovelace"],
+  "domains": [
+    "lovelace"
+  ],
   "homeassistant": "2023.8.0",
   "iot_class": "Local Push"
 }
