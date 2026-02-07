@@ -32,11 +32,17 @@ export function historyCacheKey(
 
 type CacheEntry = { ts: number; value: unknown; expiresAt: number };
 
+/** Minimal cache interface — satisfied by both Map and LruMap. */
+interface CacheLike<K, V> {
+  get(key: K): V | undefined;
+  set(key: K, value: V): unknown;
+}
+
 type FetchHistoryArgs = {
   hass: HomeAssistant;
   spec: HistoryGenerator["$history"];
   watchedEntities: Set<string>;
-  cache: Map<string, CacheEntry>;
+  cache: CacheLike<string, CacheEntry>;
   nowMs: number;
 };
 

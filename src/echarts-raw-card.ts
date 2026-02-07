@@ -9,6 +9,7 @@ import { deepResolveTokensAsync } from "./tokens/resolve";
 
 import { minHistoryCacheSecondsInOptionTree } from "./history/cache-ttl";
 import { fetchHistory } from "./history/fetch";
+import { LruMap } from "./history/lru-map";
 
 import {
   disposeChart,
@@ -57,8 +58,10 @@ export class EchartsRawCard extends LitElement {
   private _watchedEntities = new Set<string>();
   private _lastFingerprints = new Map<string, string>();
 
-  // history cache
-  private _historyCache = new Map<string, { ts: number; value: unknown; expiresAt: number }>();
+  // history cache — LRU-bounded to prevent unbounded growth on long-running dashboards
+  private _historyCache = new LruMap<string, { ts: number; value: unknown; expiresAt: number }>(
+    100,
+  );
 
   // prevent hass-driven re-fetch storms
   private _nextHistoryAllowedMs = 0;
