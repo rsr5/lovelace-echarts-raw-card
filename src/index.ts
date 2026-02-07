@@ -3,7 +3,7 @@ import "./echarts-raw-card";
 // Console banner (similar vibe to other HA custom cards)
 (() => {
   const name = "ECharts Raw Card";
-  const version = "0.1.0"; // keep in sync with package.json or replace later
+  const version = "1.0.3"; // keep in sync with package.json or replace later
   const badgeStyle =
     "background:#1f2937;color:#fff;padding:2px 8px;border-radius:999px;font-weight:600;";
   const nameStyle =
