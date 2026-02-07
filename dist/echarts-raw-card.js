@@ -563,6 +563,10 @@ function isHistoryGenerator(v4) {
   return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$history" in v4;
 }
 __name(isHistoryGenerator, "isHistoryGenerator");
+function isStatisticsGenerator(v4) {
+  return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$statistics" in v4;
+}
+__name(isStatisticsGenerator, "isStatisticsGenerator");
 function isTokenObject(v4) {
   return !!v4 && typeof v4 === "object" && !Array.isArray(v4) && "$entity" in v4;
 }
@@ -570,6 +574,7 @@ __name(isTokenObject, "isTokenObject");
 function containsHistoryToken(input) {
   if (!input) return false;
   if (isHistoryGenerator(input)) return true;
+  if (isStatisticsGenerator(input)) return true;
   if (Array.isArray(input)) return input.some(containsHistoryToken);
   if (typeof input === "object") {
     return Object.values(input).some(containsHistoryToken);
@@ -608,15 +613,18 @@ function applyNumberTransforms(value, token) {
   let x2 = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(x2)) return token.$default ?? value;
   if (token.$map) {
-    const m2 = token.$map;
-    if (m2.type === "log") {
-      const base2 = m2.base ?? 10;
-      const add2 = m2.add ?? 1;
-      x2 = Math.log(x2 + add2) / Math.log(base2);
-    } else if (m2.type === "sqrt") {
-      x2 = x2 < 0 ? 0 : Math.sqrt(x2);
-    } else if (m2.type === "pow") {
-      x2 = Math.pow(x2, m2.pow);
+    const raw = token.$map;
+    const m2 = typeof raw === "string" ? raw === "log" ? { type: "log" } : raw === "sqrt" ? { type: "sqrt" } : void 0 : raw;
+    if (m2) {
+      if (m2.type === "log") {
+        const base2 = m2.base ?? 10;
+        const add2 = m2.add ?? 1;
+        x2 = Math.log(x2 + add2) / Math.log(base2);
+      } else if (m2.type === "sqrt") {
+        x2 = x2 < 0 ? 0 : Math.sqrt(x2);
+      } else if (m2.type === "pow") {
+        x2 = Math.pow(x2, m2.pow);
+      }
     }
   }
   if (token.$abs) x2 = Math.abs(x2);
@@ -671,12 +679,18 @@ function parseTime(t2, fallbackMs) {
   return Number.isFinite(ms) ? ms : fallbackMs;
 }
 __name(parseTime, "parseTime");
-async function deepResolveTokensAsync(input, hass, watched, fetchHistory2) {
+async function deepResolveTokensAsync(input, hass, watched, fetchHistory2, fetchStatistics2) {
   if (!input) return input;
   if (isHistoryGenerator(input)) {
     const spec = input.$history;
     for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
     return fetchHistory2(spec);
+  }
+  if (isStatisticsGenerator(input)) {
+    const spec = input.$statistics;
+    for (const e2 of spec.entities ?? []) watched.add(normalizeEntitySpec(e2).id);
+    if (!fetchStatistics2) return [];
+    return fetchStatistics2(spec);
   }
   if (isDataGenerator(input)) {
     const spec = input.$data;
@@ -723,13 +737,14 @@ async function deepResolveTokensAsync(input, hass, watched, fetchHistory2) {
   }
   if (Array.isArray(input)) {
     const out2 = [];
-    for (const x2 of input) out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory2));
+    for (const x2 of input)
+      out2.push(await deepResolveTokensAsync(x2, hass, watched, fetchHistory2, fetchStatistics2));
     return out2;
   }
   if (typeof input === "object") {
     const out2 = {};
     for (const [k2, v4] of Object.entries(input)) {
-      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory2);
+      out2[k2] = await deepResolveTokensAsync(v4, hass, watched, fetchHistory2, fetchStatistics2);
     }
     return out2;
   }
@@ -742,6 +757,11 @@ function minHistoryCacheSecondsInOptionTree(option, fallback = 30) {
     if (!v4) return;
     if (isHistoryGenerator(v4)) {
       const cs = v4.$history.cache_seconds;
+      if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
+      return;
+    }
+    if (isStatisticsGenerator(v4)) {
+      const cs = v4.$statistics.cache_seconds;
       if (typeof cs === "number" && cs > 0) min3 = Math.min(min3, cs);
       return;
     }
@@ -944,6 +964,110 @@ async function fetchHistory({
   return result;
 }
 __name(fetchHistory, "fetchHistory");
+function statisticsCacheKey(spec, startIso, endIso) {
+  const ids = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id).join(",");
+  return [
+    ids,
+    startIso,
+    endIso,
+    spec.period ?? "day",
+    spec.stat_type ?? "change",
+    spec.mode ?? "",
+    spec.series_type ?? "",
+    JSON.stringify(spec.series_overrides ?? {})
+  ].join("|");
+}
+__name(statisticsCacheKey, "statisticsCacheKey");
+async function fetchStatistics({
+  hass,
+  spec,
+  watchedEntities,
+  cache,
+  nowMs
+}) {
+  const cacheSeconds = spec.cache_seconds ?? 300;
+  const period = spec.period ?? "day";
+  const statType = spec.stat_type ?? "change";
+  const days = spec.days ?? 14;
+  const seriesType2 = spec.series_type ?? "bar";
+  const nameFrom = spec.name_from ?? "friendly_name";
+  let endMs = spec.end != null ? parseTime(spec.end, nowMs) : nowMs;
+  const bucket = Math.max(1, cacheSeconds) * 1e3;
+  endMs = Math.floor(endMs / bucket) * bucket;
+  const startMs = spec.start != null ? parseTime(spec.start, endMs - days * 864e5) : endMs - days * 864e5;
+  const entityIds = (spec.entities ?? []).map((e2) => normalizeEntitySpec(e2).id);
+  for (const id of entityIds) watchedEntities.add(id);
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+  const key = statisticsCacheKey(spec, startIso, endIso);
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > nowMs) return cached.value;
+  if (!hass.callWS) {
+    throw new Error(
+      "[echarts-raw-card] $statistics requires hass.callWS — ensure HA version >= 2023.8"
+    );
+  }
+  const response = await hass.callWS({
+    type: "recorder/statistics_during_period",
+    start_time: startIso,
+    end_time: endIso,
+    statistic_ids: entityIds,
+    period,
+    types: [statType]
+  });
+  const idToName = /* @__PURE__ */ new Map();
+  for (const raw of spec.entities ?? []) {
+    const { id, name: override } = normalizeEntitySpec(raw);
+    const st = hass.states?.[id];
+    const displayName = override ?? (nameFrom === "entity_id" ? id : st?.attributes?.friendly_name ?? id);
+    idToName.set(id, displayName);
+  }
+  const perEntity = {};
+  for (const id of entityIds) {
+    perEntity[id] = [];
+    const records = response[id] ?? [];
+    for (const rec of records) {
+      const ts = new Date(rec.start).getTime();
+      const val = rec[statType];
+      if (val == null || !Number.isFinite(val)) continue;
+      perEntity[id].push([ts, Math.round(val * 100) / 100]);
+    }
+  }
+  const inferredMode = spec.mode ?? (entityIds.length > 1 ? "series" : "values");
+  let result;
+  if (inferredMode === "values") {
+    const id = entityIds[0];
+    result = perEntity[id] ?? [];
+  } else if (inferredMode === "pairs") {
+    result = entityIds.map((id) => {
+      const displayName = idToName.get(id) ?? id;
+      const total = (perEntity[id] ?? []).reduce((sum2, [, v4]) => sum2 + v4, 0);
+      return { name: displayName, value: Math.round(total * 100) / 100 };
+    });
+  } else {
+    const series = entityIds.map((id) => {
+      const displayName = idToName.get(id) ?? id;
+      const base2 = {
+        name: displayName,
+        type: seriesType2,
+        data: perEntity[id] ?? []
+      };
+      const overridesByName = spec.series_overrides?.[displayName];
+      const overridesById = spec.series_overrides?.[id];
+      const overrides = overridesByName ?? overridesById;
+      if (overrides && typeof overrides === "object") Object.assign(base2, overrides);
+      return base2;
+    });
+    result = series;
+  }
+  cache.set(key, {
+    ts: nowMs,
+    value: result,
+    expiresAt: nowMs + cacheSeconds * 1e3
+  });
+  return result;
+}
+__name(fetchStatistics, "fetchStatistics");
 class LruMap {
   static {
     __name(this, "LruMap");
@@ -75644,6 +75768,9 @@ class EchartsRawCard extends i$1 {
     this._historyCache = new LruMap(
       100
     );
+    this._statisticsCache = new LruMap(
+      50
+    );
     this._nextHistoryAllowedMs = 0;
   }
   static {
@@ -75838,6 +75965,21 @@ class EchartsRawCard extends i$1 {
       throw err;
     }
   }
+  async _fetchStatistics(spec) {
+    if (!this.hass) return [];
+    try {
+      return await fetchStatistics({
+        hass: this.hass,
+        spec,
+        watchedEntities: this._watchedEntities,
+        cache: this._statisticsCache,
+        nowMs: Date.now()
+      });
+    } catch (err) {
+      this._warning = err.message;
+      return [];
+    }
+  }
   _applyOption() {
     void this._applyOptionAsync();
   }
@@ -75886,7 +76028,8 @@ class EchartsRawCard extends i$1 {
         config.option,
         hass,
         watched,
-        async (spec) => this._fetchHistory(spec)
+        async (spec) => this._fetchHistory(spec),
+        async (spec) => this._fetchStatistics(spec)
       );
       if (runId !== this._runId) return;
       this._ensureChart();
