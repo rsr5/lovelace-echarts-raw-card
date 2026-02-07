@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 
+const isProd = !!process.env.CI || process.env.BUILD_MODE === "production";
+
 export default defineConfig({
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
@@ -26,11 +28,11 @@ export default defineConfig({
     // HA + modern browsers are fine with this
     target: "es2022",
 
-    // 🔴 KEEP stack traces readable while debugging
+    // Source maps always (readable stack traces)
     sourcemap: true,
 
-    // 🔴 DO NOT minify (critical for ECharts debugging)
-    minify: false,
+    // Minify in production (CI / BUILD_MODE=production), skip for local dev debugging
+    minify: isProd ? "esbuild" : false,
 
     // HA prefers single-file JS
     cssCodeSplit: false,
@@ -53,10 +55,9 @@ export default defineConfig({
   },
 
   // ─────────────────────────────────────────────
-  // Ensure esbuild doesn’t sneak minification in
+  // esbuild settings — keep function/class names in dev for readable stack traces
   // ─────────────────────────────────────────────
   esbuild: {
-    minify: false,
-    keepNames: true,
+    keepNames: !isProd,
   },
 });
