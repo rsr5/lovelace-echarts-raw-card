@@ -63,7 +63,8 @@ Unlike most chart cards, this one does **not** invent a DSL for charts — you w
     <td align="center"><strong>🌸 Nightingale</strong><br/>Energy Today<br/><img src="docs/images/nightingale.png" width="280" /></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><strong>⚡ Agile Pricing</strong><br/>Octopus half-hourly rates with dynamic average<br/><img src="docs/images/prices.png" width="420" /></td>
+    <td align="center"><strong>⚡ Agile Pricing</strong><br/>Octopus half-hourly rates with dynamic average<br/><img src="docs/images/prices.png" width="280" /></td>
+    <td align="center"><strong>🔋 Battery Bubbles</strong><br/>Force-clustered battery levels with size &amp; colour by charge<br/><img src="docs/images/battery-bubbles.png" width="280" /></td>
   </tr>
 </table>
 

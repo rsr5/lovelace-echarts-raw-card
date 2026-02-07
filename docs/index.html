@@ -482,6 +482,7 @@
       <li><a href="#dark-mode">Dark Mode</a></li>
       <li><a href="#debugging">Debugging</a></li>
       <li><a href="#chart-ideas">Chart Ideas</a></li>
+      <li class="indent"><a href="#battery-bubbles">Battery Bubbles</a></li>
     </ul>
   </aside>
 
@@ -1811,6 +1812,58 @@ option:
       data:
         $entity: sensor.agile_rates_today
         $attr: prices</code></pre>
+
+      <h3 id="battery-bubbles">🔋 Battery Bubbles — Force-Clustered Battery Levels</h3>
+      <p>
+        A force-directed graph where each bubble is a battery sensor.
+        <code>visualMap</code> drives both <strong>size and colour</strong> — low batteries
+        swell and turn red, healthy ones shrink and stay green.
+        Uses <code>$data</code> in <code>pairs</code> mode so the list stays DRY.
+        <a href="https://echarts.apache.org/examples/en/editor.html?c=graph-force" target="_blank">ECharts force graph →</a>
+      </p>
+      <div class="example-screenshot">
+        <img src="images/battery-bubbles.png" alt="Battery Bubbles force graph chart" />
+      </div>
+<pre><code class="language-yaml">type: custom:echarts-raw-card
+height: 600px
+option:
+  title:
+    text: Battery Levels
+    left: center
+    top: 8
+  tooltip:
+    formatter: "{b}: {c}%"
+  visualMap:
+    show: true
+    min: 0
+    max: 100
+    orient: horizontal
+    left: center
+    bottom: 8
+    text: ["Full", "Empty"]
+    inRange:
+      color: ["#f5222d", "#fa8c16", "#fadb14", "#52c41a"]
+      symbolSize: [100, 25]
+  series:
+    - type: graph
+      layout: force
+      force:
+        repulsion: 420
+        gravity: 0.15
+        edgeLength: 50
+      roam: true
+      label:
+        show: true
+        formatter: "{b}\n{c}%"
+        fontSize: 10
+      data:
+        $data:
+          entities:
+            - sensor.kitchen_motion_sensor_battery
+            - sensor.front_door_sensor_battery
+            # … add your battery entities here
+          mode: pairs
+          coerce: number</code></pre>
     </section>
 
     <!-- ======== FOOTER ======== -->
