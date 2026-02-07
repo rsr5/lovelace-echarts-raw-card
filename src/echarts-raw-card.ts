@@ -2,13 +2,14 @@ import { LitElement, css, html, nothing } from "lit";
 import type { ECharts, EChartsOption, SetOptionOpts } from "echarts";
 import type { HomeAssistant, LovelaceCardConfig } from "./ha-types";
 
-import type { EchartsRawCardConfig, HistoryGenerator } from "./types";
+import type { EchartsRawCardConfig, HistoryGenerator, StatisticsGenerator } from "./types";
 
 import { containsHistoryToken } from "./tokens/guards";
 import { deepResolveTokensAsync } from "./tokens/resolve";
 
 import { minHistoryCacheSecondsInOptionTree } from "./history/cache-ttl";
 import { fetchHistory } from "./history/fetch";
+import { fetchStatistics } from "./statistics/fetch";
 import { LruMap } from "./history/lru-map";
 
 import {
@@ -61,6 +62,11 @@ export class EchartsRawCard extends LitElement {
   // history cache — LRU-bounded to prevent unbounded growth on long-running dashboards
   private _historyCache = new LruMap<string, { ts: number; value: unknown; expiresAt: number }>(
     100,
+  );
+
+  // statistics cache — longer TTL, separate from history
+  private _statisticsCache = new LruMap<string, { ts: number; value: unknown; expiresAt: number }>(
+    50,
   );
 
   // prevent hass-driven re-fetch storms
@@ -351,6 +357,23 @@ export class EchartsRawCard extends LitElement {
     }
   }
 
+  private async _fetchStatistics(spec: StatisticsGenerator["$statistics"]): Promise<unknown> {
+    if (!this.hass) return [];
+
+    try {
+      return await fetchStatistics({
+        hass: this.hass,
+        spec,
+        watchedEntities: this._watchedEntities,
+        cache: this._statisticsCache,
+        nowMs: Date.now(),
+      });
+    } catch (err) {
+      this._warning = (err as Error).message;
+      return [];
+    }
+  }
+
   private _applyOption(): void {
     void this._applyOptionAsync();
   }
@@ -412,8 +435,12 @@ export class EchartsRawCard extends LitElement {
     try {
       const watched = new Set<string>();
 
-      const resolved = (await deepResolveTokensAsync(config.option, hass, watched, async (spec) =>
-        this._fetchHistory(spec),
+      const resolved = (await deepResolveTokensAsync(
+        config.option,
+        hass,
+        watched,
+        async (spec) => this._fetchHistory(spec),
+        async (spec) => this._fetchStatistics(spec),
       )) as EChartsOption;
 
       // cancelled/replaced

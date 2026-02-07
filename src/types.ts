@@ -119,3 +119,44 @@ export type HistoryGenerator = {
     minimal_response?: boolean; // default false
   };
 };
+
+/* ------------------------------------------------------------------
+ * $statistics generator
+ * ------------------------------------------------------------------ */
+
+export type StatisticType = "mean" | "min" | "max" | "sum" | "change" | "state";
+export type StatisticPeriod = "5minute" | "hour" | "day" | "week" | "month";
+export type StatisticsMode = "values" | "series" | "pairs";
+
+export type StatisticsGenerator = {
+  $statistics: {
+    entities: EntitySpec[];
+
+    /** Aggregation period — default "day" */
+    period?: StatisticPeriod;
+
+    /** Which statistic to use — default "change" */
+    stat_type?: StatisticType;
+
+    /** How many days of statistics to fetch — default 14 */
+    days?: number;
+
+    /** Explicit start/end overrides (ISO string or epoch ms) */
+    start?: string | number;
+    end?: string | number;
+
+    /** Output mode — default "values" for 1 entity, "series" for multiple */
+    mode?: StatisticsMode;
+
+    name_from?: "friendly_name" | "entity_id";
+
+    /** Series type for mode: "series" — default "bar" */
+    series_type?: "line" | "bar" | "scatter";
+
+    /** Cache TTL — default 300 (5 min, statistics don't change fast) */
+    cache_seconds?: number;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ECharts series options are open-ended
+    series_overrides?: Record<string, Record<string, any>>;
+  };
+};

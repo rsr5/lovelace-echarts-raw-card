@@ -1,6 +1,11 @@
 import type { HomeAssistant } from "../ha-types";
-import type { DataMode, HistoryGenerator } from "../types";
-import { isDataGenerator, isHistoryGenerator, isTokenObject } from "./guards";
+import type { DataMode, HistoryGenerator, StatisticsGenerator } from "../types";
+import {
+  isDataGenerator,
+  isHistoryGenerator,
+  isStatisticsGenerator,
+  isTokenObject,
+} from "./guards";
 import { normalizeEntitySpec } from "./entity";
 import { applyNumberTransforms, applyTransformsWithSpec, coerceValue } from "./transforms";
 
@@ -9,6 +14,7 @@ export async function deepResolveTokensAsync(
   hass: HomeAssistant | undefined,
   watched: Set<string>,
   fetchHistory: (spec: HistoryGenerator["$history"]) => Promise<unknown>,
+  fetchStatistics?: (spec: StatisticsGenerator["$statistics"]) => Promise<unknown>,
 ): Promise<unknown> {
   if (!input) return input;
 
@@ -17,6 +23,14 @@ export async function deepResolveTokensAsync(
     const spec = input.$history;
     for (const e of spec.entities ?? []) watched.add(normalizeEntitySpec(e).id);
     return fetchHistory(spec);
+  }
+
+  // $statistics
+  if (isStatisticsGenerator(input)) {
+    const spec = input.$statistics;
+    for (const e of spec.entities ?? []) watched.add(normalizeEntitySpec(e).id);
+    if (!fetchStatistics) return [];
+    return fetchStatistics(spec);
   }
 
   // $data
@@ -89,14 +103,15 @@ export async function deepResolveTokensAsync(
 
   if (Array.isArray(input)) {
     const out = [];
-    for (const x of input) out.push(await deepResolveTokensAsync(x, hass, watched, fetchHistory));
+    for (const x of input)
+      out.push(await deepResolveTokensAsync(x, hass, watched, fetchHistory, fetchStatistics));
     return out;
   }
 
   if (typeof input === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-      out[k] = await deepResolveTokensAsync(v, hass, watched, fetchHistory);
+      out[k] = await deepResolveTokensAsync(v, hass, watched, fetchHistory, fetchStatistics);
     }
     return out;
   }

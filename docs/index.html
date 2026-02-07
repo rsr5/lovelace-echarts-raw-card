@@ -474,6 +474,10 @@
       <li class="indent"><a href="#history-multi">Multi Entity</a></li>
       <li class="indent"><a href="#history-downsample">Downsampling</a></li>
       <li class="indent"><a href="#history-overrides">Series Overrides</a></li>
+      <li><a href="#statistics">$statistics — Aggregated Stats</a></li>
+      <li class="indent"><a href="#statistics-daily">Daily Bars</a></li>
+      <li class="indent"><a href="#statistics-multi">Multi Entity</a></li>
+      <li class="indent"><a href="#statistics-options">Options Reference</a></li>
       <li><a href="#caching">Caching &amp; Performance</a></li>
       <li><a href="#dark-mode">Dark Mode</a></li>
       <li><a href="#debugging">Debugging</a></li>
@@ -532,6 +536,11 @@
           <p>Fetch HA history directly with <code>$history</code>. Supports multi-entity, downsampling, and smart caching.</p>
         </div>
         <div class="feature-card">
+          <div class="feature-card-icon">📊</div>
+          <h4>Aggregated Statistics</h4>
+          <p>Use <code>$statistics</code> for daily totals, weekly averages, and cost deltas from HA's long-term statistics API.</p>
+        </div>
+        <div class="feature-card">
           <div class="feature-card-icon">⚡</div>
           <h4>Built-in Transforms</h4>
           <p>Scale, round, clamp, log, sqrt, abs, and offset — apply math transforms inline, no templates needed.</p>
@@ -567,7 +576,7 @@
         <div class="callout-title">💡 Tip</div>
         Browse the <a href="https://echarts.apache.org/examples/" target="_blank">ECharts Examples Gallery</a>
         for inspiration. Copy any example's <code>option</code> object into your card config and
-        replace static data with <code>$entity</code>, <code>$data</code>, or <code>$history</code> tokens.
+        replace static data with <code>$entity</code>, <code>$data</code>, <code>$history</code>, or <code>$statistics</code> tokens.
       </div>
     </section>
 
@@ -1122,12 +1131,180 @@ value:
       </div>
     </section>
 
+    <!-- ======== $statistics ======== -->
+    <section id="statistics">
+      <h2><code>$statistics</code> — Aggregated Statistics</h2>
+      <p>
+        Fetch <strong>pre-computed statistics</strong> from Home Assistant's long-term statistics API.
+        Unlike <code>$history</code> (which returns every recorded state change), <code>$statistics</code>
+        returns <strong>aggregated buckets</strong> — one value per hour, day, week, or month — with proper
+        delta handling via <code>stat_type: change</code>.
+      </p>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 When to use <code>$statistics</code> vs <code>$history</code></div>
+        Use <code>$statistics</code> for <strong>aggregated/bucketed data</strong> — daily totals, hourly averages, cost deltas, monthly summaries.<br>
+        Use <code>$history</code> for <strong>raw time-series</strong> — live traces, minute-by-minute sensor readings.
+      </div>
+
+      <h3 id="statistics-daily">Daily bar chart</h3>
+      <p>A single entity producing <code>[timestamp, value]</code> pairs — perfect for <code>xAxis: { type: time }</code>.</p>
+<pre><code class="language-yaml">option:
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+    name: "£"
+  series:
+    - type: bar
+      data:
+        $statistics:
+          entities:
+            - sensor.daily_energy_cost
+          period: day
+          stat_type: change
+          days: 14</code></pre>
+
+      <h3 id="statistics-multi">Multi-entity series</h3>
+      <p>
+        Multiple entities with <code>mode: series</code> — the card generates one ECharts series per entity,
+        just like <code>$history</code> multi-entity mode.
+      </p>
+<pre><code class="language-yaml">option:
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+  series:
+    $statistics:
+      entities:
+        - sensor.solar_production
+        - sensor.grid_import
+      period: day
+      stat_type: change
+      days: 30
+      mode: series
+      series_type: bar</code></pre>
+
+      <h3>Pie / donut aggregation</h3>
+      <p>
+        Use <code>mode: pairs</code> to get <code>{ name, value }</code> objects — ideal for pie charts, treemaps, and bar-by-category charts.
+        Each entity becomes one data point with its total summed across the requested period.
+      </p>
+<pre><code class="language-yaml">option:
+  series:
+    - type: pie
+      radius: ["40%", "70%"]
+      data:
+        $statistics:
+          entities:
+            - sensor.power_kitchen
+            - sensor.power_office
+            - sensor.power_hvac
+          period: day
+          stat_type: sum
+          days: 7
+          mode: pairs</code></pre>
+
+      <h3>Per-series overrides</h3>
+<pre><code class="language-yaml">$statistics:
+  entities:
+    - sensor.solar_production
+    - sensor.grid_import
+  period: day
+  stat_type: change
+  days: 30
+  mode: series
+  series_overrides:
+    Solar Production:
+      color: "#4caf50"
+      areaStyle: {}
+    Grid Import:
+      color: "#f44336"</code></pre>
+
+      <h3 id="statistics-options"><code>$statistics</code> Options Reference</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>entities</code></td>
+              <td>string[]</td>
+              <td><em>(required)</em></td>
+              <td>One or more Home Assistant entity IDs</td>
+            </tr>
+            <tr>
+              <td><code>period</code></td>
+              <td>string</td>
+              <td><code>day</code></td>
+              <td><code>5minute</code> · <code>hour</code> · <code>day</code> · <code>week</code> · <code>month</code></td>
+            </tr>
+            <tr>
+              <td><code>stat_type</code></td>
+              <td>string</td>
+              <td><code>change</code></td>
+              <td><code>mean</code> · <code>min</code> · <code>max</code> · <code>sum</code> · <code>change</code> · <code>state</code></td>
+            </tr>
+            <tr>
+              <td><code>days</code></td>
+              <td>number</td>
+              <td><code>14</code></td>
+              <td>How many days of statistics to fetch</td>
+            </tr>
+            <tr>
+              <td><code>start</code> / <code>end</code></td>
+              <td>string | number</td>
+              <td>—</td>
+              <td>Explicit time range override (ISO string or epoch ms)</td>
+            </tr>
+            <tr>
+              <td><code>mode</code></td>
+              <td>string</td>
+              <td>auto</td>
+              <td><code>values</code> (1 entity → <code>[ts, val][]</code>), <code>series</code> (→ ECharts series[]), <code>pairs</code> (→ <code>{name, value}[]</code>)</td>
+            </tr>
+            <tr>
+              <td><code>name_from</code></td>
+              <td>string</td>
+              <td><code>friendly_name</code></td>
+              <td><code>friendly_name</code> or <code>entity_id</code></td>
+            </tr>
+            <tr>
+              <td><code>series_type</code></td>
+              <td>string</td>
+              <td><code>bar</code></td>
+              <td><code>line</code> · <code>bar</code> · <code>scatter</code> (used in <code>series</code> mode)</td>
+            </tr>
+            <tr>
+              <td><code>cache_seconds</code></td>
+              <td>number</td>
+              <td><code>300</code></td>
+              <td>Cache TTL — statistics don't change fast (5 min default)</td>
+            </tr>
+            <tr>
+              <td><code>series_overrides</code></td>
+              <td>object</td>
+              <td>—</td>
+              <td>Per-series ECharts overrides keyed by name</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ======== CACHING ======== -->
     <section id="caching">
       <h2>Caching &amp; Performance</h2>
       <p>The card is designed to be efficient out of the box:</p>
       <ul>
         <li><strong>History caching</strong> — API responses are cached for <code>cache_seconds</code> (default 30). No redundant fetches.</li>
+        <li><strong>Statistics caching</strong> — Statistics responses are cached separately with a longer TTL (default 300s / 5 min).</li>
         <li><strong>LRU eviction</strong> — The cache stores the most recent 100 unique queries. Old entries are evicted automatically.</li>
         <li><strong>Throttled re-fetches</strong> — State changes don't spam the history API. Re-fetches respect the cache TTL.</li>
         <li><strong>Downsampling</strong> — Use <code>sample.max_points</code> to keep large datasets from slowing down rendering.</li>
@@ -1188,7 +1365,7 @@ option:
 
       <h3>What Debug Shows</h3>
       <ul>
-        <li>The <strong>fully resolved</strong> ECharts option after all <code>$entity</code>, <code>$data</code>, and <code>$history</code> tokens are replaced</li>
+        <li>The <strong>fully resolved</strong> ECharts option after all <code>$entity</code>, <code>$data</code>, <code>$history</code>, and <code>$statistics</code> tokens are replaced</li>
         <li>Helpful for verifying that entities resolved correctly, transforms applied properly, and history data arrived</li>
       </ul>
     </section>

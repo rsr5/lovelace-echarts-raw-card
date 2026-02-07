@@ -1,4 +1,4 @@
-import { isHistoryGenerator } from "../tokens/guards";
+import { isHistoryGenerator, isStatisticsGenerator } from "../tokens/guards";
 
 export function minHistoryCacheSecondsInOptionTree(option: unknown, fallback = 30): number {
   let min = Infinity;
@@ -7,6 +7,11 @@ export function minHistoryCacheSecondsInOptionTree(option: unknown, fallback = 3
     if (!v) return;
     if (isHistoryGenerator(v)) {
       const cs = v.$history.cache_seconds;
+      if (typeof cs === "number" && cs > 0) min = Math.min(min, cs);
+      return;
+    }
+    if (isStatisticsGenerator(v)) {
+      const cs = v.$statistics.cache_seconds;
       if (typeof cs === "number" && cs > 0) min = Math.min(min, cs);
       return;
     }

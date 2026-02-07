@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 
-A **power-user Home Assistant Lovelace card** that renders **raw Apache ECharts options**, with **native Home Assistant entity binding**, **history queries**, **transforms**, and **automatic dark-mode support**.
+A **power-user Home Assistant Lovelace card** that renders **raw Apache ECharts options**, with **native Home Assistant entity binding**, **history queries**, **statistics aggregation**, **transforms**, and **automatic dark-mode support**.
 
 Unlike most chart cards, this one does **not** invent a DSL for charts — you write **real ECharts `option` objects**, and this card resolves Home Assistant data into them.
 
@@ -25,6 +25,7 @@ Unlike most chart cards, this one does **not** invent a DSL for charts — you w
 - ✅ Live entity binding via `$entity` tokens
 - ✅ Bulk entity extraction via `$data`
 - ✅ Historical data via `$history`
+- ✅ Aggregated statistics via `$statistics` (daily/hourly/weekly totals, means, deltas)
 - ✅ Built-in transforms (log, scale, clamp, round, etc.)
 - ✅ Attribute reading via `$attr`
 - ✅ Efficient LRU caching + throttling for history queries
@@ -283,12 +284,97 @@ Overrides may target **friendly name or entity ID**.
 
 ---
 
+## `$statistics`: Aggregated Statistics
+
+Fetch **pre-computed statistics** from Home Assistant's long-term statistics API — perfect for daily totals, weekly averages, monthly costs, and anything where raw history is too noisy or accumulative.
+
+Unlike `$history` (which returns every recorded state change), `$statistics` returns **aggregated buckets** (e.g. one value per day) with proper delta handling via `stat_type: change`.
+
+### Daily bar chart
+
+```yaml
+option:
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+  series:
+    - type: bar
+      data:
+        $statistics:
+          entities:
+            - sensor.daily_energy_cost
+          period: day
+          stat_type: change
+          days: 14
+```
+
+### Multi-entity series
+
+```yaml
+option:
+  xAxis:
+    type: time
+  yAxis:
+    type: value
+  series:
+    $statistics:
+      entities:
+        - sensor.solar_production
+        - sensor.grid_import
+      period: day
+      stat_type: change
+      days: 30
+      mode: series
+      series_type: bar
+```
+
+### Pie / donut aggregation
+
+```yaml
+option:
+  series:
+    - type: pie
+      data:
+        $statistics:
+          entities:
+            - sensor.power_kitchen
+            - sensor.power_office
+            - sensor.power_hvac
+          period: day
+          stat_type: sum
+          days: 7
+          mode: pairs
+```
+
+### `$statistics` options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `entities` | string[] | *(required)* | Entity IDs |
+| `period` | string | `day` | `5minute` · `hour` · `day` · `week` · `month` |
+| `stat_type` | string | `change` | `mean` · `min` · `max` · `sum` · `change` · `state` |
+| `days` | number | `14` | How many days of statistics to fetch |
+| `start` / `end` | string \| number | — | Explicit time range (ISO string or epoch ms) |
+| `mode` | string | auto | `values` (1 entity → `[ts, val][]`), `series` (→ ECharts series[]), `pairs` (→ `{name, value}[]`) |
+| `name_from` | string | `friendly_name` | `friendly_name` or `entity_id` |
+| `series_type` | string | `bar` | `line` · `bar` · `scatter` (used in `series` mode) |
+| `cache_seconds` | number | `300` | Cache TTL (statistics don't change fast) |
+| `series_overrides` | object | — | Per-series ECharts overrides keyed by name |
+
+> **When to use `$statistics` vs `$history`:**  
+> Use `$statistics` for **aggregated/bucketed data** (daily totals, hourly averages, cost deltas).  
+> Use `$history` for **raw time-series** (live traces, minute-by-minute readings).
+
+---
+
 ## Caching & Performance
 
 - History requests are cached (`cache_seconds`, default 30s)
+- Statistics requests are cached (`cache_seconds`, default 300s)
 - Card throttles re-fetches automatically
 - HA state churn does **not** spam history queries
-- Multiple `$history` blocks use the **minimum cache window**
+- Multiple `$history` / `$statistics` blocks use the **minimum cache window**
 
 ```yaml
 $history:

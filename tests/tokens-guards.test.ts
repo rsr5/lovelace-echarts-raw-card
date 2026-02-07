@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isDataGenerator,
   isHistoryGenerator,
+  isStatisticsGenerator,
   isTokenObject,
   containsHistoryToken,
 } from "../src/tokens/guards";
@@ -58,6 +59,38 @@ describe("isHistoryGenerator", () => {
   it("returns false for objects without $history", () => {
     expect(isHistoryGenerator({ $data: {} })).toBe(false);
     expect(isHistoryGenerator({ $entity: "sensor.foo" })).toBe(false);
+    expect(isHistoryGenerator({ $statistics: {} })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isStatisticsGenerator
+// ---------------------------------------------------------------------------
+describe("isStatisticsGenerator", () => {
+  it("returns true for a valid $statistics object", () => {
+    expect(
+      isStatisticsGenerator({ $statistics: { entities: ["sensor.foo"], period: "day" } }),
+    ).toBe(true);
+  });
+
+  it("returns true even if $statistics value is empty", () => {
+    expect(isStatisticsGenerator({ $statistics: {} })).toBe(true);
+  });
+
+  it("returns false for null / undefined / primitives", () => {
+    expect(isStatisticsGenerator(null)).toBe(false);
+    expect(isStatisticsGenerator(undefined)).toBe(false);
+    expect(isStatisticsGenerator(42)).toBe(false);
+  });
+
+  it("returns false for arrays", () => {
+    expect(isStatisticsGenerator([{ $statistics: {} }])).toBe(false);
+  });
+
+  it("returns false for objects without $statistics", () => {
+    expect(isStatisticsGenerator({ $data: {} })).toBe(false);
+    expect(isStatisticsGenerator({ $history: {} })).toBe(false);
+    expect(isStatisticsGenerator({ $entity: "sensor.foo" })).toBe(false);
   });
 });
 
@@ -125,6 +158,22 @@ describe("containsHistoryToken", () => {
     expect(containsHistoryToken(["not-history", { $history: { entities: ["sensor.x"] } }])).toBe(
       true,
     );
+  });
+
+  it("returns true for a direct $statistics object", () => {
+    expect(containsHistoryToken({ $statistics: { entities: ["sensor.x"] } })).toBe(true);
+  });
+
+  it("finds $statistics nested in an object tree", () => {
+    const option = {
+      series: [
+        {
+          type: "bar",
+          data: { $statistics: { entities: ["sensor.cost"], period: "day", days: 14 } },
+        },
+      ],
+    };
+    expect(containsHistoryToken(option)).toBe(true);
   });
 
   it("returns false for $data and $entity tokens", () => {
