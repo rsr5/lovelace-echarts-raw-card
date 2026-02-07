@@ -158,6 +158,16 @@ describe("applyNumberTransforms", () => {
     it("pow transform", () => {
       expect(applyNumberTransforms(3, tok({ $map: { type: "pow", pow: 2 } }))).toBe(9);
     });
+
+    it("string shorthand 'log' works like { type: 'log' }", () => {
+      const obj = applyNumberTransforms(99, tok({ $map: { type: "log" } }));
+      const str = applyNumberTransforms(99, tok({ $map: "log" }));
+      expect(str).toBeCloseTo(obj as number, 10);
+    });
+
+    it("string shorthand 'sqrt' works like { type: 'sqrt' }", () => {
+      expect(applyNumberTransforms(25, tok({ $map: "sqrt" }))).toBe(5);
+    });
   });
 
   it("$abs", () => {

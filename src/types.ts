@@ -20,6 +20,8 @@ export type EchartsRawCardConfig = LovelaceCardConfig & {
  * ------------------------------------------------------------------ */
 
 export type TokenMap =
+  | "log"
+  | "sqrt"
   | { type: "log"; base?: number; add?: number }
   | { type: "sqrt" }
   | { type: "pow"; pow: number };

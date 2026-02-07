@@ -36,15 +36,22 @@ export function applyNumberTransforms(value: unknown, token: TokenObject): unkno
   if (!Number.isFinite(x)) return token.$default ?? value;
 
   if (token.$map) {
-    const m = token.$map;
-    if (m.type === "log") {
-      const base = m.base ?? 10;
-      const add = m.add ?? 1;
-      x = Math.log(x + add) / Math.log(base);
-    } else if (m.type === "sqrt") {
-      x = x < 0 ? 0 : Math.sqrt(x);
-    } else if (m.type === "pow") {
-      x = Math.pow(x, m.pow);
+    const raw = token.$map;
+    // Normalise string shorthand ("log", "sqrt", "pow") → object form
+    const m: TokenObject["$map"] =
+      typeof raw === "string"
+        ? (raw === "log" ? { type: "log" } : raw === "sqrt" ? { type: "sqrt" } : undefined)
+        : raw;
+    if (m) {
+      if (m.type === "log") {
+        const base = m.base ?? 10;
+        const add = m.add ?? 1;
+        x = Math.log(x + add) / Math.log(base);
+      } else if (m.type === "sqrt") {
+        x = x < 0 ? 0 : Math.sqrt(x);
+      } else if (m.type === "pow") {
+        x = Math.pow(x, m.pow);
+      }
     }
   }
 
