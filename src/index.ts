@@ -12,24 +12,18 @@ import "./echarts-raw-card";
     "background:#374151;color:#fff;padding:2px 8px;border-radius:0 6px 6px 0;font-weight:700;";
 
   // One line banner
-  // eslint-disable-next-line no-console
-  console.info(
-    `%c${name}%c v${version}`,
-    nameStyle,
-    verStyle
-  );
+  console.info(`%c${name}%c v${version}`, nameStyle, verStyle);
 
   // Optional extra line (like many cards do)
-  // eslint-disable-next-line no-console
   console.info(`%cLoaded`, badgeStyle);
 })();
 
 // Register for Lovelace custom cards list
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- HA global window.customCards is untyped
 (window as any).customCards = (window as any).customCards || [];
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- HA global window.customCards is untyped
 (window as any).customCards.push({
   type: "echarts-raw-card",
   name: "ECharts Raw Card",
-  description: "Render raw Apache ECharts option objects in Lovelace."
+  description: "Render raw Apache ECharts option objects in Lovelace.",
 });

@@ -3,7 +3,7 @@ import type { HomeAssistant } from "../ha-types";
 export function shouldUpdateForHassChange(
   hass: HomeAssistant | undefined,
   watchedEntities: Set<string>,
-  lastFingerprints: Map<string, string>
+  lastFingerprints: Map<string, string>,
 ): boolean {
   if (watchedEntities.size === 0) return false;
   if (!hass?.states) return false;
@@ -21,7 +21,7 @@ export function shouldUpdateForHassChange(
 export function snapshotFingerprints(
   hass: HomeAssistant | undefined,
   watchedEntities: Set<string>,
-  lastFingerprints: Map<string, string>
+  lastFingerprints: Map<string, string>,
 ): void {
   if (!hass?.states) return;
 

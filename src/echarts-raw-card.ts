@@ -2,30 +2,9 @@ import { LitElement, css, html, nothing } from "lit";
 import type { ECharts, EChartsOption, SetOptionOpts } from "echarts";
 import type { HomeAssistant, LovelaceCardConfig } from "./ha-types";
 
-import type {
-  DataGenerator,
-  DataMode,
-  EchartsRawCardConfig,
-  EntitySpec,
-  HistoryGenerator,
-  HistoryMode,
-  TokenMap,
-  TokenObject
-} from "./types";
+import type { EchartsRawCardConfig, HistoryGenerator } from "./types";
 
-import {
-  containsHistoryToken,
-  isDataGenerator,
-  isHistoryGenerator,
-  isTokenObject
-} from "./tokens/guards";
-import { normalizeEntitySpec, parseTime, resolveEntityNowValue } from "./tokens/entity";
-import {
-  applyNumberTransforms,
-  applyTransformsWithSpec,
-  coerceHistoryPointNumber,
-  coerceValue
-} from "./tokens/transforms";
+import { containsHistoryToken } from "./tokens/guards";
 import { deepResolveTokensAsync } from "./tokens/resolve";
 
 import { minHistoryCacheSecondsInOptionTree } from "./history/cache-ttl";
@@ -37,7 +16,7 @@ import {
   getContainer,
   hasSize,
   initChart,
-  safeResize
+  safeResize,
 } from "./echarts/instance";
 
 import { shouldUpdateForHassChange, snapshotFingerprints } from "./card/watched";
@@ -57,7 +36,7 @@ export class EchartsRawCard extends LitElement {
     _error: { state: true },
     _warning: { state: true },
     _loading: { state: true },
-    _debugResolvedOptionText: { state: true }
+    _debugResolvedOptionText: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -107,18 +86,24 @@ export class EchartsRawCard extends LitElement {
     this._echartsTheme = undefined;
   }
 
-  private _debugFlags(): { showResolvedOption: boolean; logResolvedOption: boolean; maxChars: number } {
+  private _debugFlags(): {
+    showResolvedOption: boolean;
+    logResolvedOption: boolean;
+    maxChars: number;
+  } {
     const dbg = this._config?.debug;
 
     // default: off
     if (!dbg) return { showResolvedOption: false, logResolvedOption: false, maxChars: 50_000 };
 
     // debug: true => enable both
-    if (dbg === true) return { showResolvedOption: true, logResolvedOption: true, maxChars: 50_000 };
+    if (dbg === true)
+      return { showResolvedOption: true, logResolvedOption: true, maxChars: 50_000 };
 
     const showResolvedOption = dbg.show_resolved_option ?? false;
     const logResolvedOption = dbg.log_resolved_option ?? false;
-    const maxChars = typeof dbg.max_chars === "number" && dbg.max_chars > 0 ? dbg.max_chars : 50_000;
+    const maxChars =
+      typeof dbg.max_chars === "number" && dbg.max_chars > 0 ? dbg.max_chars : 50_000;
     return { showResolvedOption, logResolvedOption, maxChars };
   }
 
@@ -136,7 +121,7 @@ export class EchartsRawCard extends LitElement {
         if (typeof v === "function") return "[Function]";
         return v;
       },
-      2
+      2,
     );
 
     if (json.length <= maxChars) return json;
@@ -263,7 +248,6 @@ export class EchartsRawCard extends LitElement {
     // If debug is enabled, log once early so users can confirm config is being read.
     // (applyOption can be deferred until the container has a real size.)
     if (this._config?.debug) {
-      // eslint-disable-next-line no-console
       console.info("[echarts-raw-card] debug enabled:", this._config.debug);
     }
 
@@ -345,7 +329,7 @@ export class EchartsRawCard extends LitElement {
         spec,
         watchedEntities: this._watchedEntities,
         cache: this._historyCache,
-        nowMs: Date.now()
+        nowMs: Date.now(),
       });
     } catch (err) {
       const e = err as Error & { code?: string };
@@ -425,11 +409,8 @@ export class EchartsRawCard extends LitElement {
     try {
       const watched = new Set<string>();
 
-      const resolved = (await deepResolveTokensAsync(
-        config.option,
-        hass,
-        watched,
-        async (spec) => this._fetchHistory(spec)
+      const resolved = (await deepResolveTokensAsync(config.option, hass, watched, async (spec) =>
+        this._fetchHistory(spec),
       )) as EChartsOption;
 
       // cancelled/replaced
@@ -440,7 +421,7 @@ export class EchartsRawCard extends LitElement {
       if (!this._chart) return;
 
       this._watchedEntities = watched;
-    this._warning = undefined;
+      this._warning = undefined;
 
       const opt = resolved as Record<string, unknown>;
       const option: EChartsOption =
@@ -463,7 +444,6 @@ export class EchartsRawCard extends LitElement {
         this._warning = `[echarts-raw-card] ${msg}`;
 
         if (this._debugFlags().logResolvedOption) {
-          // eslint-disable-next-line no-console
           console.warn("[echarts-raw-card]", msg);
         }
       }
@@ -474,7 +454,6 @@ export class EchartsRawCard extends LitElement {
         const text = this._safeStringify(option, dbg.maxChars);
         this._debugResolvedOptionText = text;
         if (dbg.logResolvedOption) {
-          // eslint-disable-next-line no-console
           console.debug("[echarts-raw-card] resolved option:", option);
         }
       } else {
@@ -484,7 +463,7 @@ export class EchartsRawCard extends LitElement {
       const opts: SetOptionOpts = { notMerge: true, lazyUpdate: true };
 
       this._chart.setOption(option, opts);
-    snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
+      snapshotFingerprints(this.hass, this._watchedEntities, this._lastFingerprints);
 
       // Resize once after setting option (helps when HA lays out late)
       safeResize(this._chart, el);
@@ -497,7 +476,6 @@ export class EchartsRawCard extends LitElement {
       disposeChart(this._chart);
       this._chart = undefined;
 
-      // eslint-disable-next-line no-console
       console.error("[echarts-raw-card] applyOption error:", err);
     } finally {
       if (runId === this._runId) {
@@ -514,7 +492,6 @@ export class EchartsRawCard extends LitElement {
     return html`
       <ha-card>
         ${title ? html`<div class="header">${title}</div>` : nothing}
-
         ${this._error
           ? html`
               <div class="error">
@@ -523,7 +500,6 @@ export class EchartsRawCard extends LitElement {
               </div>
             `
           : nothing}
-
         ${this._warning
           ? html`
               <div class="warning">
@@ -549,9 +525,7 @@ export class EchartsRawCard extends LitElement {
           ? html`
               <details class="debug">
                 <summary>Debug: resolved ECharts option</summary>
-                <div class="debug-hint">
-                  Tip: open this card in the editor and copy from below.
-                </div>
+                <div class="debug-hint">Tip: open this card in the editor and copy from below.</div>
                 <pre class="debug-pre">${this._debugResolvedOptionText}</pre>
               </details>
             `

@@ -1,7 +1,7 @@
 export function downsample(
   points: Array<[number, unknown]>,
   maxPoints: number,
-  method: "mean" | "last"
+  method: "mean" | "last",
 ): Array<[number, unknown]> {
   if (points.length <= maxPoints || maxPoints <= 1) return points;
 

@@ -8,7 +8,7 @@ export async function deepResolveTokensAsync(
   input: unknown,
   hass: HomeAssistant | undefined,
   watched: Set<string>,
-  fetchHistory: (spec: HistoryGenerator["$history"]) => Promise<unknown>
+  fetchHistory: (spec: HistoryGenerator["$history"]) => Promise<unknown>,
 ): Promise<unknown> {
   if (!input) return input;
 

@@ -1,9 +1,6 @@
 import type { DataGenerator, TokenObject } from "../types";
 
-export function coerceValue(
-  raw: unknown,
-  mode: TokenObject["$coerce"] = "auto"
-): unknown {
+export function coerceValue(raw: unknown, mode: TokenObject["$coerce"] = "auto"): unknown {
   if (mode === "string") return raw == null ? "" : String(raw);
 
   if (mode === "bool") {
@@ -75,7 +72,7 @@ export function applyTransformsWithSpec(
   entityId: string,
   def: unknown,
   coerce: TokenObject["$coerce"] | undefined,
-  transforms: DataGenerator["$data"]["transforms"] | undefined
+  transforms: DataGenerator["$data"]["transforms"] | undefined,
 ): unknown {
   const coerced = coerceValue(value, coerce ?? "auto");
   if (typeof coerced === "number" && Number.isNaN(coerced)) return def ?? 0;
@@ -91,7 +88,7 @@ export function applyTransformsWithSpec(
     $min: transforms?.min,
     $max: transforms?.max,
     $clamp: transforms?.clamp,
-    $round: transforms?.round
+    $round: transforms?.round,
   };
 
   return applyNumberTransforms(coerced, token);
@@ -102,7 +99,7 @@ export function coerceHistoryPointNumber(
   entityId: string,
   def: unknown,
   coerce: TokenObject["$coerce"] | undefined,
-  transforms: DataGenerator["$data"]["transforms"] | undefined
+  transforms: DataGenerator["$data"]["transforms"] | undefined,
 ): number | undefined {
   const coerceMode: TokenObject["$coerce"] = coerce ?? "number";
   const v = applyTransformsWithSpec(raw, entityId, def, coerceMode, transforms);

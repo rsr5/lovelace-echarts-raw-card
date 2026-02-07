@@ -3,4 +3,5 @@ node_modules/
 .vscode/
 dist/*.map
 PLAN.md
+CODE_REVIEW.md
 examples

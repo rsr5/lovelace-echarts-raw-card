@@ -20,7 +20,7 @@ export function getAttachedInstance(el: HTMLElement): ECharts | undefined {
 export function initChart(
   el: HTMLElement,
   theme: string | undefined,
-  renderer: "canvas" | "svg"
+  renderer: "canvas" | "svg",
 ): ECharts {
   return echarts.init(el, theme, { renderer }) as unknown as ECharts;
 }

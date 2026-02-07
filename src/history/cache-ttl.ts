@@ -11,7 +11,7 @@ export function minHistoryCacheSecondsInOptionTree(option: unknown, fallback = 3
       return;
     }
     if (Array.isArray(v)) return v.forEach(walk);
-    if (typeof v === "object") Object.values(v as any).forEach(walk);
+    if (typeof v === "object") Object.values(v as Record<string, unknown>).forEach(walk);
   };
 
   walk(option);

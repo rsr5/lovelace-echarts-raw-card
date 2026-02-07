@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
-    "process.env": {}
+    "process.env": {},
   },
   // ─────────────────────────────────────────────
   // Dev server (unchanged from yours)
@@ -15,8 +15,8 @@ export default defineConfig({
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,OPTIONS",
-      "Access-Control-Allow-Headers": "*"
-    }
+      "Access-Control-Allow-Headers": "*",
+    },
   },
 
   // ─────────────────────────────────────────────
@@ -38,18 +38,18 @@ export default defineConfig({
     lib: {
       entry: "src/index.ts",
       formats: ["es"],
-      fileName: () => "echarts-raw-card.js"
+      fileName: () => "echarts-raw-card.js",
     },
 
     rollupOptions: {
       output: {
         // 🔴 Force everything into ONE file
-        inlineDynamicImports: true
-      }
+        inlineDynamicImports: true,
+      },
     },
 
     outDir: "dist",
-    emptyOutDir: true
+    emptyOutDir: true,
   },
 
   // ─────────────────────────────────────────────
@@ -57,6 +57,6 @@ export default defineConfig({
   // ─────────────────────────────────────────────
   esbuild: {
     minify: false,
-    keepNames: true
-  }
+    keepNames: true,
+  },
 });

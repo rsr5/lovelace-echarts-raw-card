@@ -6,6 +6,7 @@
  *  - (optional) minimal_response short keys (e/s/a/lc/lu)
  */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- HA history objects have unpredictable shapes
 export type HistoryStateLike = Record<string, any>;
 
 export function histEntityId(s: HistoryStateLike): string | undefined {

@@ -12,7 +12,8 @@ export interface HomeAssistant {
     darkMode?: boolean;
     theme?: string;
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  callApi?(method: string, path: string): Promise<unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- HA's callService accepts arbitrary data
   callService?: (domain: string, service: string, data?: any) => Promise<void>;
 }
 

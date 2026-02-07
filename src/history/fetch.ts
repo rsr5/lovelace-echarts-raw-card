@@ -2,10 +2,15 @@ import type { HomeAssistant } from "../ha-types";
 import type { HistoryGenerator, HistoryMode } from "../types";
 import { normalizeEntitySpec, parseTime } from "../tokens/entity";
 import { coerceHistoryPointNumber } from "../tokens/transforms";
+import type { HistoryStateLike } from "./decode";
 import { histAttributes, histEntityId, histState, histTimestampMs } from "./decode";
 import { downsample } from "./downsample";
 
-export function historyCacheKey(spec: HistoryGenerator["$history"], startMs: number, endMs: number): string {
+export function historyCacheKey(
+  spec: HistoryGenerator["$history"],
+  startMs: number,
+  endMs: number,
+): string {
   const ids = (spec.entities ?? []).map((e) => normalizeEntitySpec(e).id).join(",");
   const sample = spec.sample ? `${spec.sample.max_points}:${spec.sample.method ?? "mean"}` : "";
   const overrides = spec.series_overrides ? JSON.stringify(spec.series_overrides) : "";
@@ -21,7 +26,7 @@ export function historyCacheKey(spec: HistoryGenerator["$history"], startMs: num
     spec.series_type ?? "",
     sample,
     overrides,
-    minimal
+    minimal,
   ].join("|");
 }
 
@@ -35,7 +40,13 @@ type FetchHistoryArgs = {
   nowMs: number;
 };
 
-export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }: FetchHistoryArgs): Promise<unknown> {
+export async function fetchHistory({
+  hass,
+  spec,
+  watchedEntities,
+  cache,
+  nowMs,
+}: FetchHistoryArgs): Promise<unknown> {
   // bucket endMs when end is implicit so cache keys & HA params are stable inside cache_seconds
   const cacheSeconds = spec.cache_seconds ?? 30;
   let endMs = parseTime(spec.end, nowMs);
@@ -57,12 +68,12 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
       end: spec.end,
       hours: spec.hours,
       nowMs,
-      computed: { startMs, endMs }
+      computed: { startMs, endMs },
     };
     const err = new Error(
       `[echarts-raw-card] Invalid $history time range; start/end must be finite epoch-ms numbers. Details: ${JSON.stringify(
-        details
-      )}`
+        details,
+      )}`,
     ) as Error & { code?: string };
     err.code = "ECHARTS_RAW_CARD_INVALID_HISTORY_TIME";
     throw err;
@@ -89,11 +100,10 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
   // Use a single comma-separated filter_entity_id to reliably fetch multiple entities.
   params.set("filter_entity_id", entityIds.join(","));
 
-  // @ts-expect-error: HA has callApi at runtime
-  const hist = (await hass.callApi(
+  const hist = (await hass.callApi!(
     "GET",
-    `history/period/${startIso}?${params.toString()}`
-  )) as Array<Array<Record<string, any>>>;
+    `history/period/${startIso}?${params.toString()}`,
+  )) as Array<Array<HistoryStateLike>>;
 
   const nameFrom = spec.name_from ?? "friendly_name";
   const seriesType = spec.series_type ?? "line";
@@ -106,7 +116,9 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
     const st = hass.states?.[id];
     const displayName =
       override ??
-      (nameFrom === "entity_id" ? id : (st?.attributes?.friendly_name as string | undefined) ?? id);
+      (nameFrom === "entity_id"
+        ? id
+        : ((st?.attributes?.friendly_name as string | undefined) ?? id));
 
     idToName.set(id, displayName);
   }
@@ -120,16 +132,16 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
   for (const arr of hist ?? []) {
     if (!Array.isArray(arr) || arr.length === 0) continue;
 
-    const arrEntityId = histEntityId(arr[0] as any);
+    const arrEntityId = histEntityId(arr[0]);
 
     for (const s of arr) {
-      const id = histEntityId(s as any) ?? arrEntityId;
+      const id = histEntityId(s) ?? arrEntityId;
       if (!id || !perEntity[id]) continue;
 
-      const ts = histTimestampMs(s as any);
+      const ts = histTimestampMs(s);
       if (ts == null) continue;
 
-      const raw = spec.attr ? histAttributes(s as any)?.[spec.attr] : histState(s as any);
+      const raw = spec.attr ? histAttributes(s)?.[spec.attr] : histState(s);
       const n = coerceHistoryPointNumber(raw, id, spec.default, spec.coerce, spec.transforms);
       if (n == null) continue;
 
@@ -145,7 +157,7 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
       perEntity[id] = downsample(
         perEntity[id] as Array<[number, unknown]>,
         spec.sample.max_points,
-        method
+        method,
       ) as Array<[number, number]>;
     }
   }
@@ -160,11 +172,11 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
   } else {
     const series = entityIds.map((id) => {
       const displayName = idToName.get(id) ?? id;
-      const base: Record<string, any> = {
+      const base: Record<string, unknown> = {
         name: displayName,
         type: seriesType,
         showSymbol,
-        data: perEntity[id] ?? []
+        data: perEntity[id] ?? [],
       };
 
       // allow overrides by display name OR by entity id
@@ -183,7 +195,7 @@ export async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }
   cache.set(cacheKey, {
     ts: nowMs,
     value: result,
-    expiresAt: nowMs + cacheSeconds * 1000
+    expiresAt: nowMs + cacheSeconds * 1000,
   });
 
   return result;

@@ -10,7 +10,7 @@ export function resolveEntityNowValue(
   hass: HomeAssistant | undefined,
   entityId: string,
   spec: DataGenerator["$data"],
-  watched: Set<string>
+  watched: Set<string>,
 ): unknown {
   watched.add(entityId);
 

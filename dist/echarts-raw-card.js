@@ -832,7 +832,13 @@ function historyCacheKey(spec, startMs, endMs) {
   ].join("|");
 }
 __name(historyCacheKey, "historyCacheKey");
-async function fetchHistory({ hass, spec, watchedEntities, cache, nowMs }) {
+async function fetchHistory({
+  hass,
+  spec,
+  watchedEntities,
+  cache,
+  nowMs
+}) {
   const cacheSeconds = spec.cache_seconds ?? 30;
   let endMs = parseTime(spec.end, nowMs);
   if (spec.end == null) {
@@ -75622,7 +75628,8 @@ class EchartsRawCard extends i$1 {
   _debugFlags() {
     const dbg = this._config?.debug;
     if (!dbg) return { showResolvedOption: false, logResolvedOption: false, maxChars: 5e4 };
-    if (dbg === true) return { showResolvedOption: true, logResolvedOption: true, maxChars: 5e4 };
+    if (dbg === true)
+      return { showResolvedOption: true, logResolvedOption: true, maxChars: 5e4 };
     const showResolvedOption = dbg.show_resolved_option ?? false;
     const logResolvedOption = dbg.log_resolved_option ?? false;
     const maxChars = typeof dbg.max_chars === "number" && dbg.max_chars > 0 ? dbg.max_chars : 5e4;
@@ -75885,14 +75892,12 @@ class EchartsRawCard extends i$1 {
     return b`
       <ha-card>
         ${title ? b`<div class="header">${title}</div>` : A}
-
         ${this._error ? b`
               <div class="error">
                 <div class="error-title">ECharts configuration error</div>
                 <pre class="error-details">${this._error}</pre>
               </div>
             ` : A}
-
         ${this._warning ? b`
               <div class="warning">
                 <div class="warning-title">Warning</div>
@@ -75913,9 +75918,7 @@ class EchartsRawCard extends i$1 {
         ${dbg.showResolvedOption && this._debugResolvedOptionText ? b`
               <details class="debug">
                 <summary>Debug: resolved ECharts option</summary>
-                <div class="debug-hint">
-                  Tip: open this card in the editor and copy from below.
-                </div>
+                <div class="debug-hint">Tip: open this card in the editor and copy from below.</div>
                 <pre class="debug-pre">${this._debugResolvedOptionText}</pre>
               </details>
             ` : A}
@@ -76085,11 +76088,7 @@ if (!customElements.get("echarts-raw-card")) {
   const badgeStyle = "background:#1f2937;color:#fff;padding:2px 8px;border-radius:999px;font-weight:600;";
   const nameStyle = "background:#111827;color:#fff;padding:2px 8px;border-radius:6px 0 0 6px;font-weight:700;";
   const verStyle = "background:#374151;color:#fff;padding:2px 8px;border-radius:0 6px 6px 0;font-weight:700;";
-  console.info(
-    `%c${name}%c v${version}`,
-    nameStyle,
-    verStyle
-  );
+  console.info(`%c${name}%c v${version}`, nameStyle, verStyle);
   console.info(`%cLoaded`, badgeStyle);
 })();
 window.customCards = window.customCards || [];

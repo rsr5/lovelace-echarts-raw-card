@@ -110,6 +110,7 @@ export type HistoryGenerator = {
     cache_seconds?: number;
 
     // optional per-series override by display name OR entity_id
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ECharts series options are open-ended
     series_overrides?: Record<string, Record<string, any>>;
 
     // optional: you can re-enable minimal_response later if you want
